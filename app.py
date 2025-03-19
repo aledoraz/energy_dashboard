@@ -36,7 +36,15 @@ if not df.empty:
     # --- FILTRARE E PREPARARE I DATI ---
     df['date'] = pd.to_datetime(df['date'])
     df = df[df['date'].dt.year > 2014]
-
+    
+    # Creiamo le nuove categorie
+    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables"]
+    brown_sources = ["Coal", "Gas", "Nuclear", "Other fossil"]
+    
+    df["total"] = df.groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
+    df["total_green"] = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
+    df["total_brown"] = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
+    
     # --- TABELLA INTERATTIVA CON FILTRI ---
     st.subheader("📊 Dati Grezzi (Filtrabili)")
     filtro_paese = st.multiselect("Seleziona Paesi:", options=df["entity_code"].unique(), default=df["entity_code"].unique())
@@ -75,6 +83,23 @@ if not df.empty:
     fig.savefig(buffer, format="png")
     buffer.seek(0)
     st.download_button("📥 Scarica Grafico", buffer, file_name="grafico_generazione.png", mime="image/png")
+
+    # --- NUOVA TABELLA: PRODUZIONE ULTIMO MESE/SEMESTRE ---
+    st.subheader("📊 Produzione Elettrica per Fonte - Ultimo Mese & Ultimo Semestre")
+    ultimo_mese = df["date"].max()
+    ultimo_semestre = ultimo_mese - pd.DateOffset(months=5)
+    
+    df_ultimo_mese = df[df["date"] == ultimo_mese]
+    df_ultimo_semestre = df[df["date"] >= ultimo_semestre].groupby(["entity_code", "series"])["generation_gwh"].sum().reset_index()
+    
+    df_yoy_mese = df[df["date"] == (ultimo_mese - pd.DateOffset(years=1))]
+    df_yoy_semestre = df[df["date"] >= (ultimo_semestre - pd.DateOffset(years=1))].groupby(["entity_code", "series"])["generation_gwh"].sum().reset_index()
+    
+    df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
+    df_variation_mese["YoY %"] = ((df_variation_mese["generation_gwh_new"] - df_variation_mese["generation_gwh_old"]) / df_variation_mese["generation_gwh_old"]) * 100
+    
+    st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY %"]))
+    st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
 
 else:
     st.warning("Nessun dato disponibile!")
