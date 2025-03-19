@@ -72,7 +72,7 @@ if not df.empty:
     })
     
     df = df.sort_values(by=["Country", "Source", "Date"])
-    df["Date"] = pd.to_datetime(df["Date"])  # Converti in datetime se non lo è già
+
     df["Date"] = df["Date"].dt.strftime('%m-%Y')  # Ora puoi formattare
 
 
