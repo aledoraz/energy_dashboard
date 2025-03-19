@@ -39,7 +39,6 @@ def get_data():
 df = get_data()
 
 if not df.empty:
-
     # --- PREPARAZIONE DEI DATI ---
     df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
     df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
@@ -64,42 +63,40 @@ if not df.empty:
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
     
-    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
-    df.rename(columns={
+    df = df.rename(columns={
         "entity_code": "Country",
         "date": "Date",
         "series": "Source",
         "generation_twh": "Generation (TWh)",
         "share_of_generation_pct": "Share (%)"
-    }, inplace=True)
+    })
     
-    # Ordina i dati per Country, Source e Date
     df = df.sort_values(by=["Country", "Source", "Date"])
-
     df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
 
-# Creiamo una copia del dataset con l'anno spostato di +1 per fare il merge
+    # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
     df_last_year = df.copy()
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
-
-# Merge tra il dataset attuale e il dataset dell'anno precedente sulla base di Country, Source e Date
     df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
-              on=["Country", "Source", "Date"], 
-              suffixes=("", "_last_year"), 
-              how="left")
-
-# Calcolo della variazione YoY
+                  on=["Country", "Source", "Date"], 
+                  suffixes=("", "_last_year"), 
+                  how="left")
     df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / df["Generation (TWh)_last_year"]) * 100
-
-# Arrotondiamo a due decimali
     df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
-
-# Rimuoviamo la colonna temporanea
     df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+    df_yoy = df[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
 
-    df_yoy = df.copy()
-
-    df_yoy = df_yoy[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
+    color_map = {
+        "Coal": "#4d4d4d",
+        "Other fossil": "#a6a6a6",
+        "Gas": "#b5651d",
+        "Nuclear": "#ffdd44",
+        "Solar": "#87CEEB",
+        "Wind": "#aec7e8",
+        "Hydro": "#1f77b4",
+        "Bioenergy": "#2ca02c",
+        "Other renewables": "#17becf"
+    }
     
     col1, col2 = st.columns([2, 3])
     
@@ -107,14 +104,14 @@ if not df.empty:
         st.subheader("📊 Produzione Elettricità YoY")
         paese_scelto = st.selectbox("Seleziona un paese:", df["Country"].unique())
         df_paese = df_yoy[df_yoy["Country"] == paese_scelto]
-        st.write(df_paese.style.format({"Generation (TWh)": "{:.2f}", "Share (%)": "{:.2f}", "YoY Variation": "{:.2f}"}))
+        st.write(df_paese.style.format({"Generation (TWh)": "{:.2f}", "Share (%)": "{:.2f}", "YoY Variation (%)": "{:.2f}"}))
         st.download_button("📥 Scarica Dati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
     
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
         fig, ax = plt.subplots(figsize=(10, 5))
         df_plot = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])].pivot(index='Date', columns='Source', values='Share (%)')
-        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
+        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map[s] for s in df_plot.columns])
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
         ax.set_ylim(0, 100)
