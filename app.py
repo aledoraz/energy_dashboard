@@ -21,7 +21,7 @@ def get_data():
         + f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
     
-    for attempt in range(3):  # 3 tentativi di richiesta
+    for attempt in range(5):  # 3 tentativi di richiesta
         response = requests.get(query_url)
         if response.status_code == 200:
             data = response.json()
@@ -31,8 +31,8 @@ def get_data():
                 st.warning("Dati API ricevuti ma vuoti o in formato inatteso.")
                 return pd.DataFrame()
         elif response.status_code == 500:
-            st.warning(f"Tentativo {attempt+1}/3: Il server API ha restituito errore 500. Riprovo tra 5 secondi...")
-            time.sleep(5)  # Attendere 5 secondi prima di ritentare
+            st.warning(f"Tentativo {attempt+1}/3: Il server API ha restituito errore 500. Riprovo tra 20 secondi...")
+            time.sleep(20)  # Attendere 5 secondi prima di ritentare
         else:
             st.error(f"Errore API: {response.status_code}")
             return pd.DataFrame()
