@@ -39,7 +39,6 @@ def get_data():
 df = get_data()
 
 if not df.empty:
-    st.success("Dati scaricati con successo!")
 
     # --- PREPARAZIONE DEI DATI ---
     df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
@@ -74,17 +73,33 @@ if not df.empty:
         "share_of_generation_pct": "Share (%)"
     }, inplace=True)
     
-    # --- CALCOLO VARIAZIONE YOY ---
+    # Ordina i dati per Country, Source e Date
+    df = df.sort_values(by=["Country", "Source", "Date"])
+
+    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
+
+# Creiamo una copia del dataset con l'anno spostato di +1 per fare il merge
+    df_last_year = df.copy()
+    df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
+
+# Merge tra il dataset attuale e il dataset dell'anno precedente sulla base di Country, Source e Date
+    df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
+              on=["Country", "Source", "Date"], 
+              suffixes=("", "_last_year"), 
+              how="left")
+
+# Calcolo della variazione YoY
+    df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / df["Generation (TWh)_last_year"]) * 100
+
+# Arrotondiamo a due decimali
+    df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
+
+# Rimuoviamo la colonna temporanea
+    df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+
     df_yoy = df.copy()
-    df_yoy_prev = df_yoy.copy()
-    df_yoy_prev["Date"] = pd.to_datetime(df_yoy_prev["Date"], format='%m-%Y') - pd.DateOffset(years=1)
-    df_yoy_prev["Date"] = df_yoy_prev["Date"].dt.strftime('%m-%Y')
-    df_yoy_prev = df_yoy_prev[["Country", "Date", "Source", "Generation (TWh)"]]
-    
-    df_yoy = df_yoy.merge(df_yoy_prev, on=["Country", "Source", "Date"], suffixes=("", "_prev"), how="left")
-    df_yoy["YoY Variation"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_prev"]) / df_yoy["Generation (TWh)_prev"]) * 100
-    df_yoy.loc[df_yoy["Generation (TWh)_prev"].isna(), "YoY Variation"] = None
-    df_yoy = df_yoy[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]]
+
+    df_yoy = df_yoy[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
     
     col1, col2 = st.columns([2, 3])
     
