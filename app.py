@@ -8,11 +8,9 @@ from io import BytesIO
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
-# --- FUNZIONE PER SCARICARE I DATI CON RETRY ---
 def get_data():
     api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
-    
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
         + f"?entity_code=ITA,DEU,FRA,CHN,USA,AUS,CAN,JPN"
@@ -31,13 +29,10 @@ def get_data():
                 st.warning("Dati API ricevuti ma vuoti o in formato inatteso.")
                 return pd.DataFrame()
         elif response.status_code == 500:
-            st.warning(f"Tentativo {attempt+1}/5: Il server API ha restituito errore 500. Riprovo tra 20 secondi...")
             time.sleep(20)
         else:
-            st.error(f"Errore API: {response.status_code}")
             return pd.DataFrame()
     
-    st.error("Errore persistente API 500: il server non risponde. Riprova più tardi.")
     return pd.DataFrame()
 
 # --- SCARICAMENTO DATI ---
@@ -69,7 +64,6 @@ if not df.empty:
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
     
-    # --- FILTRARE COLONNE ---
     df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
     df.rename(columns={
         "entity_code": "Country",
@@ -86,21 +80,17 @@ if not df.empty:
     df_yoy_prev["Date"] = df_yoy_prev["Date"].dt.strftime('%m-%Y')
     df_yoy = df_yoy.merge(df_yoy_prev, on=["Country", "Source", "Date"], suffixes=("", "_prev"), how="left")
     df_yoy["YoY Variation"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_prev"]) / df_yoy["Generation (TWh)_prev"]) * 100
-    df_yoy["YoY Variation"].fillna(0, inplace=True)
+    df_yoy.loc[df_yoy["Generation (TWh)_prev"].isna(), "YoY Variation"] = None
     df_yoy = df_yoy[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]]
     
-    # --- DASHBOARD LAYOUT ---
     col1, col2 = st.columns([2, 3])
     
     with col1:
         st.subheader("📊 Produzione Elettricità YoY")
         paese_scelto = st.selectbox("Seleziona un paese:", df["Country"].unique())
         df_paese = df_yoy[df_yoy["Country"] == paese_scelto]
-        df_paese = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])]
-        
-        st.write(df_paese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
-        st.download_button("📥 Scarica Dati Filtrati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
-        st.download_button("📥 Scarica Dataset Completo", df.to_csv(index=False), "dati_completi.csv", "text/csv")
+        st.write(df_paese.style.format({"Generation (TWh)": "{:.2f}", "Share (%)": "{:.2f}", "YoY Variation": "{:.2f}"}))
+        st.download_button("📥 Scarica Dati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
     
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
@@ -113,10 +103,5 @@ if not df.empty:
         plt.xlabel('Anno')
         plt.tight_layout()
         st.pyplot(fig)
-        
-        buffer = BytesIO()
-        fig.savefig(buffer, format="png")
-        buffer.seek(0)
-        st.download_button("📥 Scarica Grafico", buffer, file_name=f"grafico_generazione_{paese_scelto}.png", mime="image/png")
 else:
-    st.warning("Nessun dato disponibile!") 
+    st.warning("Nessun dato disponibile!")
