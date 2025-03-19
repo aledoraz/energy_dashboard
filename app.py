@@ -62,9 +62,13 @@ if not df.empty:
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
     brown_sources = ["Coal", "Gas", "Other fossil"]
     
-    df["total"] = df.groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
-    df["total_green"] = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
-    df["total_brown"] = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
+    df_total = df.groupby(["entity_code", "date"])["generation_gwh"].sum().reset_index()
+    df_total["series"] = "Total"
+    df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_gwh"].sum().reset_index()
+    df_total_green["series"] = "Green"
+    df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_gwh"].sum().reset_index()
+    df_total_brown["series"] = "Brown"
+    df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     
     # --- COLORI GRAFICO ---
     color_map = {
@@ -76,7 +80,10 @@ if not df.empty:
         "Wind": "#aec7e8",
         "Hydro": "#1f77b4",
         "Bioenergy": "#2ca02c",
-        "Other renewables": "#17becf"
+        "Other renewables": "#17becf",
+        "Total": "#000000",
+        "Green": "#008000",
+        "Brown": "#8B0000"
     }
     
     # --- LAYOUT DELLA DASHBOARD ---
@@ -87,19 +94,25 @@ if not df.empty:
         paese_scelto = st.selectbox("Seleziona un paese:", df["entity_code"].unique())
         df_paese = df[df["entity_code"] == paese_scelto]
         
-        # Calcoli per tabella
         ultimo_mese = df_paese["date"].max()
         semestre = "S1" if ultimo_mese.month <= 6 else "S2"
-        ultimo_semestre = df_paese[(df_paese["date"] >= f"{ultimo_mese.year}-01-01") if semestre == "S1" else (df_paese["date"] >= f"{ultimo_mese.year}-07-01")]
-        
         df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese]
         df_yoy_mese = df_paese[df_paese["date"] == (ultimo_mese - pd.DateOffset(years=1))]
         
         df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
         df_variation_mese["YoY %"] = ((df_variation_mese["generation_gwh_new"] - df_variation_mese["generation_gwh_old"]) / df_variation_mese["generation_gwh_old"]) * 100
+        df_variation_mese = df_variation_mese.rename(columns={
+            "entity_code": "Country",
+            "date_new": "Date",
+            "series": "Source",
+            "generation_twh_new": "Generation (TWh)",
+            "share_of_generation_pct_new": "Share (%)",
+            "YoY %": "Y-o-Y Variation"
+        })
         
-        st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY %"]))
+        st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["Y-o-Y Variation"]))
         st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
+        st.download_button("📥 Scarica Dataset Completo", df.to_csv(index=False), "dati_completi.csv", "text/csv")
     
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
