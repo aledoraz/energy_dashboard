@@ -119,4 +119,4 @@ if not df.empty:
         buffer.seek(0)
         st.download_button("📥 Scarica Grafico", buffer, file_name=f"grafico_generazione_{paese_scelto}.png", mime="image/png")
 else:
-    st.warning("Nessun dato disponibile!")
+    st.warning("Nessun dato disponibile!") 
