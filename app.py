@@ -42,7 +42,8 @@ if not df.empty:
 
     # --- PREPARAZIONE DEI DATI ---
     df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
-    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')  # Formattazione MM-YYYY
+    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
+    df = df[df['date'] >= '01-2014']
     df["generation_twh"] = df["generation_twh"].round(2)
     
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
@@ -75,77 +76,50 @@ if not df.empty:
     # Ordina i dati per Country, Source e Date
     df = df.sort_values(by=["Country", "Source", "Date"])
 
-    df["Date"] = df["Date"].dt.strftime('%m-%Y')
+    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
 
-    # Creiamo una copia del dataset con l'anno spostato di +1 per fare il merge
+# Creiamo una copia del dataset con l'anno spostato di +1 per fare il merge
     df_last_year = df.copy()
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
 
-    # Merge tra il dataset attuale e il dataset dell'anno precedente sulla base di Country, Source e Date
+# Merge tra il dataset attuale e il dataset dell'anno precedente sulla base di Country, Source e Date
     df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
-                  on=["Country", "Source", "Date"], 
-                  suffixes=("", "_last_year"), 
-                  how="left")
+              on=["Country", "Source", "Date"], 
+              suffixes=("", "_last_year"), 
+              how="left")
 
-    # Calcolo della variazione YoY
+# Calcolo della variazione YoY
     df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / df["Generation (TWh)_last_year"]) * 100
 
-    # Arrotondiamo a due decimali
+# Arrotondiamo a due decimali
     df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
 
-    # Rimuoviamo la colonna temporanea
+# Rimuoviamo la colonna temporanea
     df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
 
     df_yoy = df.copy()
 
     df_yoy = df_yoy[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
-
+    
     col1, col2 = st.columns([2, 3])
-
+    
     with col1:
         st.subheader("📊 Produzione Elettricità YoY")
         paese_scelto = st.selectbox("Seleziona un paese:", df["Country"].unique())
         df_paese = df_yoy[df_yoy["Country"] == paese_scelto]
-        st.write(df_paese.style.format({
-            "Generation (TWh)": "{:.2f}", 
-            "Share (%)": "{:.2f}", 
-            "YoY Variation (%)": "{:.2f}"  # Corretto formato decimale
-        }))
-
+        st.write(df_paese.style.format({"Generation (TWh)": "{:.2f}", "Share (%)": "{:.2f}", "YoY Variation": "{:.2f}"}))
         st.download_button("📥 Scarica Dati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
-
+    
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
-
-                # Dizionario colori personalizzati
-        colori_sources = {
-            "Coal": "#4d4d4d",  # Grigio scuro
-            "Other fossil": "#a6a6a6",  # Grigio chiaro
-            "Gas": "#b5651d",   # Marrone
-            "Nuclear": "#ffdd44",  # Giallo
-            "Solar": "#87CEEB",  # Azzurro chiaro
-            "Wind": "#aec7e8",  # Blu chiaro
-            "Hydro": "#1f77b4",  # Azzurro
-            "Bioenergy": "#2ca02c",  # Verde acceso
-            "Other renewables": "#17becf"  # Verde acqua
-        }
-        
-        # Prepara il dataframe per il grafico
-        df_plot = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])].pivot(index='Date', columns='Source', values='Share (%)')
-        
-        # Creazione del grafico con colori personalizzati
         fig, ax = plt.subplots(figsize=(10, 5))
-        for source in df_plot.columns:
-            ax.fill_between(df_plot.index, df_plot[source].cumsum(axis=1).iloc[:, -1], label=source, color=colori_sources.get(source, "#000000"), alpha=0.7)
-        
+        df_plot = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])].pivot(index='Date', columns='Source', values='Share (%)')
+        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
         ax.set_ylim(0, 100)
         plt.xlabel('Anno')
-        plt.legend(title="Source", loc="upper left", bbox_to_anchor=(1,1))
         plt.tight_layout()
         st.pyplot(fig)
-
-
 else:
     st.warning("Nessun dato disponibile!")
