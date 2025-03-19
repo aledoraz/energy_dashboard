@@ -60,22 +60,32 @@ if not df.empty:
     
     df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_green["series"] = "Green"
-    df_total_green["share_of_generation_pct"] = df_total_green["generation_twh"] / df_total["generation_twh"] * 100
+    df_total_green["share_of_generation_pct"] = (df_total_green["generation_twh"] / df_total["generation_twh"]).round(2) * 100
     
     df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_brown["series"] = "Brown"
-    df_total_brown["share_of_generation_pct"] = df_total_brown["generation_twh"] / df_total["generation_twh"] * 100
+    df_total_brown["share_of_generation_pct"] = (df_total_brown["generation_twh"] / df_total["generation_twh"]).round(2) * 100
     
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
     
+    # --- FILTRARE COLONNE ---
+    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
+    df.rename(columns={
+        "entity_code": "Country",
+        "date": "Date",
+        "series": "Source",
+        "generation_twh": "Generation (TWh)",
+        "share_of_generation_pct": "Share (%)"
+    }, inplace=True)
+    
     # --- CALCOLO VARIAZIONE YOY ---
     df_yoy = df.copy()
-    df_yoy["date"] = pd.to_datetime(df_yoy["date"], format='%m-%Y')
     df_yoy_prev = df_yoy.copy()
-    df_yoy_prev["date"] = df_yoy_prev["date"] + pd.DateOffset(years=1)
-    df_yoy = df_yoy.merge(df_yoy_prev, on=["entity_code", "series", "date"], suffixes=("", "_prev"), how="left")
-    df_yoy["YoY Variation"] = ((df_yoy["generation_twh"] - df_yoy["generation_twh_prev"]) / df_yoy["generation_twh_prev"]) * 100
+    df_yoy_prev["Date"] = pd.to_datetime(df_yoy_prev["Date"], format='%m-%Y') + pd.DateOffset(years=1)
+    df_yoy_prev["Date"] = df_yoy_prev["Date"].dt.strftime('%m-%Y')
+    df_yoy = df_yoy.merge(df_yoy_prev, on=["Country", "Source", "Date"], suffixes=("", "_prev"), how="left")
+    df_yoy["YoY Variation"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_prev"]) / df_yoy["Generation (TWh)_prev"]) * 100
     df_yoy["YoY Variation"].fillna(0, inplace=True)
     
     # --- DASHBOARD LAYOUT ---
@@ -83,8 +93,9 @@ if not df.empty:
     
     with col1:
         st.subheader("📊 Produzione Elettricità YoY")
-        paese_scelto = st.selectbox("Seleziona un paese:", df["entity_code"].unique())
-        df_paese = df_yoy[df_yoy["entity_code"] == paese_scelto]
+        paese_scelto = st.selectbox("Seleziona un paese:", df["Country"].unique())
+        df_paese = df_yoy[df_yoy["Country"] == paese_scelto]
+        df_paese = df_paese[df_paese["Source"] != "Total"]
         
         st.write(df_paese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
         st.download_button("📥 Scarica Dati Filtrati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
@@ -93,10 +104,11 @@ if not df.empty:
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
         fig, ax = plt.subplots(figsize=(10, 5))
-        df_plot = df_paese.pivot(index='date', columns='series', values='share_of_generation_pct')
+        df_plot = df_paese.pivot(index='Date', columns='Source', values='Share (%)')
         df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
+        ax.set_ylim(0, 100)
         plt.xlabel('Anno')
         plt.tight_layout()
         st.pyplot(fig)
