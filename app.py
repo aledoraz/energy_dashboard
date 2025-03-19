@@ -79,6 +79,8 @@ if not df.empty:
     df_yoy_prev = df_yoy.copy()
     df_yoy_prev["Date"] = pd.to_datetime(df_yoy_prev["Date"], format='%m-%Y') - pd.DateOffset(years=1)
     df_yoy_prev["Date"] = df_yoy_prev["Date"].dt.strftime('%m-%Y')
+    df_yoy_prev = df_yoy_prev[["Country", "Date", "Source", "Generation (TWh)"]]
+    
     df_yoy = df_yoy.merge(df_yoy_prev, on=["Country", "Source", "Date"], suffixes=("", "_prev"), how="left")
     df_yoy["YoY Variation"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_prev"]) / df_yoy["Generation (TWh)_prev"]) * 100
     df_yoy.loc[df_yoy["Generation (TWh)_prev"].isna(), "YoY Variation"] = None
