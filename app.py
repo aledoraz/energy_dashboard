@@ -82,11 +82,12 @@ if not df.empty:
     # --- CALCOLO VARIAZIONE YOY ---
     df_yoy = df.copy()
     df_yoy_prev = df_yoy.copy()
-    df_yoy_prev["Date"] = pd.to_datetime(df_yoy_prev["Date"], format='%m-%Y') + pd.DateOffset(years=1)
+    df_yoy_prev["Date"] = pd.to_datetime(df_yoy_prev["Date"], format='%m-%Y') - pd.DateOffset(years=1)
     df_yoy_prev["Date"] = df_yoy_prev["Date"].dt.strftime('%m-%Y')
     df_yoy = df_yoy.merge(df_yoy_prev, on=["Country", "Source", "Date"], suffixes=("", "_prev"), how="left")
     df_yoy["YoY Variation"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_prev"]) / df_yoy["Generation (TWh)_prev"]) * 100
     df_yoy["YoY Variation"].fillna(0, inplace=True)
+    df_yoy = df_yoy[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]]
     
     # --- DASHBOARD LAYOUT ---
     col1, col2 = st.columns([2, 3])
@@ -95,7 +96,7 @@ if not df.empty:
         st.subheader("📊 Produzione Elettricità YoY")
         paese_scelto = st.selectbox("Seleziona un paese:", df["Country"].unique())
         df_paese = df_yoy[df_yoy["Country"] == paese_scelto]
-        df_paese = df_paese[df_paese["Source"] != "Total"]
+        df_paese = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])]
         
         st.write(df_paese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
         st.download_button("📥 Scarica Dati Filtrati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
