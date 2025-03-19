@@ -10,18 +10,18 @@ st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
 # --- FUNZIONE PER SCARICARE I DATI CON RETRY ---
 def get_data():
-    api_key = st.secrets["API_KEY"]  # Usa la chiave API da secrets
+    api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
     
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        + f"?entity_code=AUT,BEL,BGR,HRV,CYP,CZE,DNK,EST,FIN,FRA,DEU,GRC,HUN,IRL,ITA,LVA,LTU,LUX,MLT,NLD,POL,PRT,ROU,SVK,SVN,ESP,SWE,GBR,CHN,USA,CAN,AUS,JPN,IND"
+        + f"?entity_code=ITA,DEU,FRA,CHN,USA,AUS,CAN,JPN"
         + f"&start_date=2014-01&end_date=2025-01"
         + f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         + f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
     
-    for attempt in range(5):  # 5 tentativi di richiesta
+    for attempt in range(5):
         response = requests.get(query_url)
         if response.status_code == 200:
             data = response.json()
@@ -32,7 +32,7 @@ def get_data():
                 return pd.DataFrame()
         elif response.status_code == 500:
             st.warning(f"Tentativo {attempt+1}/5: Il server API ha restituito errore 500. Riprovo tra 20 secondi...")
-            time.sleep(20)  # Attendere 20 secondi prima di ritentare
+            time.sleep(20)
         else:
             st.error(f"Errore API: {response.status_code}")
             return pd.DataFrame()
@@ -46,65 +46,55 @@ df = get_data()
 if not df.empty:
     st.success("Dati scaricati con successo!")
 
-    # --- VERIFICA COLONNE PRIMA DI PROCEDERE ---
-    if "generation_twh" not in df.columns:
-        st.error("Errore: La colonna 'generation_twh' non è presente nei dati ricevuti. Verifica la struttura dell'API.")
-        st.stop()
-    
-    # Convertiamo TWh in GWh (1 TWh = 1000 GWh)
-    df["generation_twh"] = df["generation_twh"].round(2)
-    
-    # --- FILTRARE E PREPARARE I DATI ---
+    # --- PREPARAZIONE DEI DATI ---
     df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
     df = df[df['date'] >= '01-2014']
+    df["generation_twh"] = df["generation_twh"].round(2)
     
-    # Creiamo le nuove categorie
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
     brown_sources = ["Coal", "Gas", "Other fossil"]
     
     df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total["series"] = "Total"
     df_total["share_of_generation_pct"] = 100.0
+    
     df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_green["series"] = "Green"
     df_total_green["share_of_generation_pct"] = df_total_green["generation_twh"] / df_total["generation_twh"] * 100
+    
     df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_brown["series"] = "Brown"
     df_total_brown["share_of_generation_pct"] = df_total_brown["generation_twh"] / df_total["generation_twh"] * 100
     
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
-    
     df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
     
-    # --- LAYOUT DELLA DASHBOARD ---
+    # --- CALCOLO VARIAZIONE YOY ---
+    df_yoy = df.copy()
+    df_yoy["date"] = pd.to_datetime(df_yoy["date"], format='%m-%Y')
+    df_yoy_prev = df_yoy.copy()
+    df_yoy_prev["date"] = df_yoy_prev["date"] + pd.DateOffset(years=1)
+    df_yoy = df_yoy.merge(df_yoy_prev, on=["entity_code", "series", "date"], suffixes=("", "_prev"), how="left")
+    df_yoy["YoY Variation"] = ((df_yoy["generation_twh"] - df_yoy["generation_twh_prev"]) / df_yoy["generation_twh_prev"]) * 100
+    df_yoy["YoY Variation"].fillna(0, inplace=True)
+    
+    # --- DASHBOARD LAYOUT ---
     col1, col2 = st.columns([2, 3])
     
     with col1:
         st.subheader("📊 Produzione Elettricità YoY")
         paese_scelto = st.selectbox("Seleziona un paese:", df["entity_code"].unique())
-        df_paese = df[df["entity_code"] == paese_scelto]
+        df_paese = df_yoy[df_yoy["entity_code"] == paese_scelto]
         
-        ultimo_mese = pd.to_datetime(df_paese["date"].max(), format='%m-%Y')
-        yoy_mese = (ultimo_mese - pd.DateOffset(years=1)).strftime('%m-%Y')
-        df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese.strftime('%m-%Y')]
-        df_yoy_mese = df_paese[df_paese["date"] == yoy_mese]
-        
-        df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=('_new', '_old'), how='left')
-        
-        df_variation_mese.rename(columns={
-            "entity_code": "Country",
-            "date": "Date",
-            "series": "Source",
-            "generation_twh_new": "Generation (TWh)",
-            "share_of_generation_pct_new": "Share (%)"
-        }, inplace=True)
-        
-        st.write(df_variation_mese)
+        st.write(df_paese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
+        st.download_button("📥 Scarica Dati Filtrati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
+        st.download_button("📥 Scarica Dataset Completo", df.to_csv(index=False), "dati_completi.csv", "text/csv")
     
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
         fig, ax = plt.subplots(figsize=(10, 5))
-        df_paese.pivot(index='date', columns='series', values='generation_twh').plot(kind='area', stacked=True, alpha=0.7, ax=ax)
+        df_plot = df_paese.pivot(index='date', columns='series', values='share_of_generation_pct')
+        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
         plt.xlabel('Anno')
