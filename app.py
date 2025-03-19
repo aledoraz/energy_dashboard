@@ -85,16 +85,22 @@ if not df.empty:
         df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese.strftime('%m-%Y')]
         df_yoy_mese = df_paese[df_paese["date"] == yoy_mese]
         
-        df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
+        df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"), how='left')
         df_variation_mese["YoY Variation"] = ((df_variation_mese["generation_twh_new"] - df_variation_mese["generation_twh_old"]) / df_variation_mese["generation_twh_old"]) * 100
+        
+        # Verifica nomi colonne
+        st.write("Colonne disponibili:", df_variation_mese.columns.tolist())
+        
         df_variation_mese = df_variation_mese.rename(columns={
             "entity_code": "Country",
-            "date": "Date",
+            "date_new": "Date",
             "series": "Source",
             "generation_twh_new": "Generation (TWh)",
             "share_of_generation_pct_new": "Share (%)"
         })
-        df_variation_mese = df_variation_mese[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]]
+        
+        colonne_da_mantenere = ["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]
+        df_variation_mese = df_variation_mese[[col for col in colonne_da_mantenere if col in df_variation_mese.columns]]
         
         st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
         st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
