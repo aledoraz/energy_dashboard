@@ -49,9 +49,12 @@ if not df.empty:
     st.success("Dati scaricati con successo!")
 
     # --- VERIFICA COLONNE PRIMA DI PROCEDERE ---
-    if "generation_gwh" not in df.columns:
-        st.error("Errore: La colonna 'generation_gwh' non è presente nei dati ricevuti. Verifica la struttura dell'API.")
+    if "generation_twh" not in df.columns:
+        st.error("Errore: La colonna 'generation_twh' non è presente nei dati ricevuti. Verifica la struttura dell'API.")
         st.stop()
+    
+    # Convertiamo TWh in GWh (1 TWh = 1000 GWh)
+    df["generation_gwh"] = df["generation_twh"] * 1000
     
     # --- FILTRARE E PREPARARE I DATI ---
     df['date'] = pd.to_datetime(df['date'])
