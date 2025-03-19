@@ -42,6 +42,7 @@ if not df.empty:
     st.success("Dati scaricati con successo!")
 
     # --- PREPARAZIONE DEI DATI ---
+    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
     df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
     df = df[df['date'] >= '01-2014']
     df["generation_twh"] = df["generation_twh"].round(2)
