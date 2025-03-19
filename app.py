@@ -41,8 +41,8 @@ df = get_data()
 if not df.empty:
     # --- PREPARAZIONE DEI DATI ---
     df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
-    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
-    df = df[df['date'] >= '01-2014']
+      
+    df["date"] = pd.to_datetime(df["date"])
     df["generation_twh"] = df["generation_twh"].round(2)
     
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
