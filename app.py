@@ -59,41 +59,61 @@ if not df.empty:
     df = df[df['date'].dt.year > 2014]
     
     # Creiamo le nuove categorie
-    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables"]
-    brown_sources = ["Coal", "Gas", "Nuclear", "Other fossil"]
+    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
+    brown_sources = ["Coal", "Gas", "Other fossil"]
     
     df["total"] = df.groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
     df["total_green"] = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
     df["total_brown"] = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_gwh"].transform("sum")
     
-    # --- TABELLA YOY ---
-    st.subheader("📊 Produzione Elettricità YoY")
-    ultimo_mese = df["date"].max()
-    ultimo_semestre = ultimo_mese - pd.DateOffset(months=5)
-    df_ultimo_mese = df[df["date"] == ultimo_mese]
-    df_ultimo_semestre = df[df["date"] >= ultimo_semestre].groupby(["entity_code", "series"])["generation_gwh"].sum().reset_index()
-    df_yoy_mese = df[df["date"] == (ultimo_mese - pd.DateOffset(years=1))]
-    df_yoy_semestre = df[df["date"] >= (ultimo_semestre - pd.DateOffset(years=1))].groupby(["entity_code", "series"])["generation_gwh"].sum().reset_index()
-    df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
-    df_variation_mese["YoY %"] = ((df_variation_mese["generation_gwh_new"] - df_variation_mese["generation_gwh_old"]) / df_variation_mese["generation_gwh_old"]) * 100
-    st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY %"]))
-    st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
+    # --- COLORI GRAFICO ---
+    color_map = {
+        "Coal": "#4d4d4d",
+        "Other fossil": "#a6a6a6",
+        "Gas": "#b5651d",
+        "Nuclear": "#ffdd44",
+        "Solar": "#87CEEB",
+        "Wind": "#aec7e8",
+        "Hydro": "#1f77b4",
+        "Bioenergy": "#2ca02c",
+        "Other renewables": "#17becf"
+    }
     
-    # --- GRAFICO INTERATTIVO ---
-    st.subheader("📈 Quota di Generazione Elettrica per Fonte")
-    paese_scelto = st.selectbox("Seleziona un paese:", df["entity_code"].unique())
-    df_pivot = df.pivot_table(index='date', columns=['entity_code', 'series'], values='generation_gwh', aggfunc='sum')
-    df_grafico = df_pivot[paese_scelto].dropna()
-    fig, ax = plt.subplots(figsize=(10, 5))
-    df_grafico.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
-    ax.set_title(f"Quota di Generazione - {paese_scelto}")
-    ax.set_ylabel('%')
-    plt.xlabel('Anno')
-    plt.tight_layout()
-    st.pyplot(fig)
-    buffer = BytesIO()
-    fig.savefig(buffer, format="png")
-    buffer.seek(0)
-    st.download_button("📥 Scarica Grafico", buffer, file_name="grafico_generazione.png", mime="image/png")
+    # --- LAYOUT DELLA DASHBOARD ---
+    col1, col2 = st.columns([2, 3])
+    
+    with col1:
+        st.subheader("📊 Produzione Elettricità YoY")
+        paese_scelto = st.selectbox("Seleziona un paese:", df["entity_code"].unique())
+        df_paese = df[df["entity_code"] == paese_scelto]
+        
+        # Calcoli per tabella
+        ultimo_mese = df_paese["date"].max()
+        semestre = "S1" if ultimo_mese.month <= 6 else "S2"
+        ultimo_semestre = df_paese[(df_paese["date"] >= f"{ultimo_mese.year}-01-01") if semestre == "S1" else (df_paese["date"] >= f"{ultimo_mese.year}-07-01")]
+        
+        df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese]
+        df_yoy_mese = df_paese[df_paese["date"] == (ultimo_mese - pd.DateOffset(years=1))]
+        
+        df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
+        df_variation_mese["YoY %"] = ((df_variation_mese["generation_gwh_new"] - df_variation_mese["generation_gwh_old"]) / df_variation_mese["generation_gwh_old"]) * 100
+        
+        st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY %"]))
+        st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
+    
+    with col2:
+        st.subheader("📈 Quota di Generazione Elettrica per Fonte")
+        df_pivot = df_paese.pivot_table(index='date', columns='series', values='generation_gwh', aggfunc='sum')
+        fig, ax = plt.subplots(figsize=(10, 5))
+        df_pivot.plot(kind='area', stacked=True, alpha=0.7, color=[color_map[s] for s in df_pivot.columns], ax=ax)
+        ax.set_title(f"Quota di Generazione - {paese_scelto}")
+        ax.set_ylabel('%')
+        plt.xlabel('Anno')
+        plt.tight_layout()
+        st.pyplot(fig)
+        buffer = BytesIO()
+        fig.savefig(buffer, format="png")
+        buffer.seek(0)
+        st.download_button("📥 Scarica Grafico", buffer, file_name=f"grafico_generazione_{paese_scelto}.png", mime="image/png")
 else:
     st.warning("Nessun dato disponibile!")
