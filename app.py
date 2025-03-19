@@ -86,18 +86,13 @@ if not df.empty:
         df_yoy_mese = df_paese[df_paese["date"] == yoy_mese]
         
         df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"), how='left')
-        df_variation_mese["YoY Variation"] = ((df_variation_mese["generation_twh_new"] - df_variation_mese["generation_twh_old"]) / df_variation_mese["generation_twh_old"]) * 100
-        
-        # Verifica nomi colonne
-        st.write("Colonne disponibili:", df_variation_mese.columns.tolist())
-        
-        df_variation_mese = df_variation_mese.rename(columns={
+        df_variation_mese.rename(columns={
             "entity_code": "Country",
-            "date_new": "Date",
+            "date": "Date",
             "series": "Source",
             "generation_twh_new": "Generation (TWh)",
             "share_of_generation_pct_new": "Share (%)"
-        })
+        }, inplace=True)
         
         colonne_da_mantenere = ["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]
         df_variation_mese = df_variation_mese[[col for col in colonne_da_mantenere if col in df_variation_mese.columns]]
