@@ -66,6 +66,23 @@ if not df.empty:
     df_filtrato = df[df["entity_code"].isin(filtro_paese) & df["series"].isin(filtro_fonte)]
     st.write(df_filtrato.head(10))
 
+    # --- NUOVA TABELLA: PRODUZIONE ULTIMO MESE/SEMESTRE ---
+    st.subheader("📊 Produzione Elettrica per Fonte - Ultimo Mese & Ultimo Semestre")
+    ultimo_mese = df["date"].max()
+    ultimo_semestre = ultimo_mese - pd.DateOffset(months=5)
+    
+    df_ultimo_mese = df[df["date"] == ultimo_mese]
+    df_ultimo_semestre = df[df["date"] >= ultimo_semestre].groupby(["entity_code", "series"])["generation_gwh"].sum().reset_index()
+    
+    df_yoy_mese = df[df["date"] == (ultimo_mese - pd.DateOffset(years=1))]
+    df_yoy_semestre = df[df["date"] >= (ultimo_semestre - pd.DateOffset(years=1))].groupby(["entity_code", "series"])["generation_gwh"].sum().reset_index()
+    
+    df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
+    df_variation_mese["YoY %"] = ((df_variation_mese["generation_gwh_new"] - df_variation_mese["generation_gwh_old"]) / df_variation_mese["generation_gwh_old"]) * 100
+    
+    st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY %"]))
+    st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
+    
     # --- OPZIONE DI DOWNLOAD DEL DATASET ---
     st.download_button("📥 Scarica Dati Filtrati", df_filtrato.to_csv(index=False), "dati_filtrati.csv", "text/csv")
     st.download_button("📥 Scarica Tutti i Dati", df.to_csv(index=False), "dati_completi.csv", "text/csv")
