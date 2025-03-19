@@ -75,7 +75,7 @@ if not df.empty:
     # Ordina i dati per Country, Source e Date
     df = df.sort_values(by=["Country", "Source", "Date"])
 
-    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
+    df["Date"] = df["Date"].dt.strftime('%m-%Y')
 
     # Creiamo una copia del dataset con l'anno spostato di +1 per fare il merge
     df_last_year = df.copy()
@@ -111,12 +111,13 @@ if not df.empty:
             "Share (%)": "{:.2f}", 
             "YoY Variation (%)": "{:.2f}"  # Corretto formato decimale
         }))
+
         st.download_button("📥 Scarica Dati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
 
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
 
-        # Dizionario colori personalizzati
+                # Dizionario colori personalizzati
         colori_sources = {
             "Coal": "#4d4d4d",  # Grigio scuro
             "Other fossil": "#a6a6a6",  # Grigio chiaro
@@ -128,20 +129,23 @@ if not df.empty:
             "Bioenergy": "#2ca02c",  # Verde acceso
             "Other renewables": "#17becf"  # Verde acqua
         }
-
+        
         # Prepara il dataframe per il grafico
         df_plot = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])].pivot(index='Date', columns='Source', values='Share (%)')
-
+        
         # Creazione del grafico con colori personalizzati
         fig, ax = plt.subplots(figsize=(10, 5))
-        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[colori_sources[s] for s in df_plot.columns])
+        for source in df_plot.columns:
+            ax.fill_between(df_plot.index, df_plot[source].cumsum(axis=1).iloc[:, -1], label=source, color=colori_sources.get(source, "#000000"), alpha=0.7)
         
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
         ax.set_ylim(0, 100)
         plt.xlabel('Anno')
+        plt.legend(title="Source", loc="upper left", bbox_to_anchor=(1,1))
         plt.tight_layout()
         st.pyplot(fig)
+
 
 else:
     st.warning("Nessun dato disponibile!")
