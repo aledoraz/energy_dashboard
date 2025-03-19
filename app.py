@@ -72,7 +72,9 @@ if not df.empty:
     })
     
     df = df.sort_values(by=["Country", "Source", "Date"])
-    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
+    df["Date"] = pd.to_datetime(df["Date"])  # Converti in datetime se non lo è già
+    df["Date"] = df["Date"].dt.strftime('%m-%Y')  # Ora puoi formattare
+
 
     # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
     df_last_year = df.copy()
