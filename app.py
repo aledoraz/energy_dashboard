@@ -40,8 +40,8 @@ df = get_data()
 
 if not df.empty:
     # --- PREPARAZIONE DEI DATI ---
-    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
-    df["date"] = pd.to_datetime(df["date"]).dt.strftime('%m-%Y')
+    df = df["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]
+    df["date"] = pd.to_datetime(df["date"])
     df["generation_twh"] = df["generation_twh"].round(2)
     
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
@@ -74,8 +74,7 @@ if not df.empty:
     
     # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
     df_last_year = df.copy()
-    df_last_year["Date"] = pd.to_datetime(df_last_year["Date"], format="%m-%Y") + pd.DateOffset(years=1)
-    df_last_year["Date"] = df_last_year["Date"].dt.strftime('%m-%Y')
+    df_last_year["Date"] = pd.to_datetime(df_last_year["Date"]) + pd.DateOffset(years=1)
     
     df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
                   on=["Country", "Source", "Date"], 
@@ -84,6 +83,7 @@ if not df.empty:
     df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / df["Generation (TWh)_last_year"]) * 100
     df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
     df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+    df["Date"] = df["Date"].dt.strftime('%m-%Y')
     df_yoy = df[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
     
     col1, col2 = st.columns([2, 3])
