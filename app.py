@@ -52,39 +52,25 @@ if not df.empty:
         st.stop()
     
     # Convertiamo TWh in GWh (1 TWh = 1000 GWh)
-    df["generation_gwh"] = df["generation_twh"] * 1000
+    df["generation_twh"] = df["generation_twh"].round(2)
     
     # --- FILTRARE E PREPARARE I DATI ---
-    df['date'] = pd.to_datetime(df['date'])
-    df = df[df['date'].dt.year > 2014]
+    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
+    df = df[df['date'] >= '2014-01']
     
     # Creiamo le nuove categorie
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
     brown_sources = ["Coal", "Gas", "Other fossil"]
     
-    df_total = df.groupby(["entity_code", "date"])["generation_gwh"].sum().reset_index()
+    df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total["series"] = "Total"
-    df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_gwh"].sum().reset_index()
+    df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_green["series"] = "Green"
-    df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_gwh"].sum().reset_index()
+    df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_brown["series"] = "Brown"
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     
-    # --- COLORI GRAFICO ---
-    color_map = {
-        "Coal": "#4d4d4d",
-        "Other fossil": "#a6a6a6",
-        "Gas": "#b5651d",
-        "Nuclear": "#ffdd44",
-        "Solar": "#87CEEB",
-        "Wind": "#aec7e8",
-        "Hydro": "#1f77b4",
-        "Bioenergy": "#2ca02c",
-        "Other renewables": "#17becf",
-        "Total": "#000000",
-        "Green": "#008000",
-        "Brown": "#8B0000"
-    }
+    df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
     
     # --- LAYOUT DELLA DASHBOARD ---
     col1, col2 = st.columns([2, 3])
@@ -95,30 +81,30 @@ if not df.empty:
         df_paese = df[df["entity_code"] == paese_scelto]
         
         ultimo_mese = df_paese["date"].max()
-        semestre = "S1" if ultimo_mese.month <= 6 else "S2"
         df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese]
-        df_yoy_mese = df_paese[df_paese["date"] == (ultimo_mese - pd.DateOffset(years=1))]
+        df_yoy_mese = df_paese[df_paese["date"] == (pd.to_datetime(ultimo_mese, format='%m-%Y') - pd.DateOffset(years=1)).strftime('%m-%Y')]
         
         df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
-        df_variation_mese["YoY %"] = ((df_variation_mese["generation_gwh_new"] - df_variation_mese["generation_gwh_old"]) / df_variation_mese["generation_gwh_old"]) * 100
+        df_variation_mese["YoY Variation"] = ((df_variation_mese["generation_twh_new"] - df_variation_mese["generation_twh_old"]) / df_variation_mese["generation_twh_old"]) * 100
         df_variation_mese = df_variation_mese.rename(columns={
             "entity_code": "Country",
-            "date_new": "Date",
+            "date": "Date",
             "series": "Source",
             "generation_twh_new": "Generation (TWh)",
-            "share_of_generation_pct_new": "Share (%)",
-            "YoY %": "Y-o-Y Variation"
+            "share_of_generation_pct_new": "Share (%)"
         })
+        df_variation_mese = df_variation_mese[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]]
         
-        st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["Y-o-Y Variation"]))
+        st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
         st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
         st.download_button("📥 Scarica Dataset Completo", df.to_csv(index=False), "dati_completi.csv", "text/csv")
     
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
-        df_pivot = df_paese.pivot_table(index='date', columns='series', values='generation_gwh', aggfunc='sum')
+        df_pivot = df_paese.pivot_table(index='date', columns='series', values='generation_twh', aggfunc='sum')
+        df_pivot = df_pivot.drop(columns=["Total", "Green", "Brown"], errors='ignore')
         fig, ax = plt.subplots(figsize=(10, 5))
-        df_pivot.plot(kind='area', stacked=True, alpha=0.7, color=[color_map[s] for s in df_pivot.columns], ax=ax)
+        df_pivot.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
         plt.xlabel('Anno')
