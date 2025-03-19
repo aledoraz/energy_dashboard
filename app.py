@@ -56,7 +56,7 @@ if not df.empty:
     
     # --- FILTRARE E PREPARARE I DATI ---
     df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
-    df = df[df['date'] >= '2014-01']
+    df = df[df['date'] >= '01-2014']
     
     # Creiamo le nuove categorie
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
@@ -80,9 +80,10 @@ if not df.empty:
         paese_scelto = st.selectbox("Seleziona un paese:", df["entity_code"].unique())
         df_paese = df[df["entity_code"] == paese_scelto]
         
-        ultimo_mese = df_paese["date"].max()
-        df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese]
-        df_yoy_mese = df_paese[df_paese["date"] == (pd.to_datetime(ultimo_mese, format='%m-%Y') - pd.DateOffset(years=1)).strftime('%m-%Y')]
+        ultimo_mese = pd.to_datetime(df_paese["date"].max(), format='%m-%Y')
+        yoy_mese = (ultimo_mese - pd.DateOffset(years=1)).strftime('%m-%Y')
+        df_ultimo_mese = df_paese[df_paese["date"] == ultimo_mese.strftime('%m-%Y')]
+        df_yoy_mese = df_paese[df_paese["date"] == yoy_mese]
         
         df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=("_new", "_old"))
         df_variation_mese["YoY Variation"] = ((df_variation_mese["generation_twh_new"] - df_variation_mese["generation_twh_old"]) / df_variation_mese["generation_twh_old"]) * 100
