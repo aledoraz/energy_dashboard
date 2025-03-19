@@ -40,7 +40,12 @@ df = get_data()
 
 if not df.empty:
     # --- PREPARAZIONE DEI DATI ---
-    df = df["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]
+    colonne_disponibili = df.columns
+    colonne_richieste = ["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]
+
+# Mantieni solo le colonne che esistono realmente
+    colonne_valide = [col for col in colonne_richieste if col in colonne_disponibili]
+    df = df[colonne_valide]
     df["date"] = pd.to_datetime(df["date"])
     df["generation_twh"] = df["generation_twh"].round(2)
     
