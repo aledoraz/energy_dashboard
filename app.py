@@ -96,7 +96,7 @@ if not df.empty:
     with col2:
         st.subheader("📈 Quota di Generazione Elettrica per Fonte")
         fig, ax = plt.subplots(figsize=(10, 5))
-        df_plot = df_paese.pivot(index='Date', columns='Source', values='Share (%)')
+        df_plot = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])].pivot(index='Date', columns='Source', values='Share (%)')
         df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
         ax.set_title(f"Quota di Generazione - {paese_scelto}")
         ax.set_ylabel('%')
