@@ -15,8 +15,8 @@ def get_data():
     
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        + f"?entity_code=AUT,BEL,BGR,HRV,CYP,CZE,DNK,EST,FIN,FRA,DEU,GRC,HUN,IRL,ITA,LVA,LTU,LUX,MLT,NLD,POL,PRT,ROU,SVK,SVN,ESP,SWE,GBR,CHN,USA,CAN,AUS,JPN,IND,EUR"
-        + f"&start_date=2000-01&end_date=2024-12"
+        + f"?entity_code=AUT,BEL,BGR,HRV,CYP,CZE,DNK,EST,FIN,FRA,DEU,GRC,HUN,IRL,ITA,LVA,LTU,LUX,MLT,NLD,POL,PRT,ROU,SVK,SVN,ESP,SWE,GBR,CHN,USA,CAN,AUS,JPN,IND"
+        + f"&start_date=2014-01&end_date=2025-01"
         + f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         + f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
@@ -64,10 +64,14 @@ if not df.empty:
     
     df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total["series"] = "Total"
+    df_total["share_of_generation_pct"] = 100.0
     df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_green["series"] = "Green"
+    df_total_green["share_of_generation_pct"] = df_total_green["generation_twh"] / df_total["generation_twh"] * 100
     df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_brown["series"] = "Brown"
+    df_total_brown["share_of_generation_pct"] = df_total_brown["generation_twh"] / df_total["generation_twh"] * 100
+    
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     
     df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
@@ -87,13 +91,6 @@ if not df.empty:
         
         df_variation_mese = df_ultimo_mese.merge(df_yoy_mese, on=["entity_code", "series"], suffixes=('_new', '_old'), how='left')
         
-        # Controllo se la colonna YoY Variation esiste
-        if "generation_twh_old" in df_variation_mese.columns:
-            df_variation_mese["YoY Variation"] = ((df_variation_mese["generation_twh_new"] - df_variation_mese["generation_twh_old"]) / df_variation_mese["generation_twh_old"]) * 100
-            df_variation_mese["YoY Variation"].fillna(0, inplace=True)
-        else:
-            df_variation_mese["YoY Variation"] = 0
-        
         df_variation_mese.rename(columns={
             "entity_code": "Country",
             "date": "Date",
@@ -102,12 +99,21 @@ if not df.empty:
             "share_of_generation_pct_new": "Share (%)"
         }, inplace=True)
         
-        colonne_da_mantenere = ["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation"]
-        df_variation_mese = df_variation_mese[[col for col in colonne_da_mantenere if col in df_variation_mese.columns]]
-        
-        st.write(df_variation_mese.style.applymap(lambda x: "color: red" if x < 0 else "color: green", subset=["YoY Variation"]))
-        st.download_button("📥 Scarica Dati Filtrati", df_variation_mese.to_csv(index=False), "dati_variation.csv", "text/csv")
-        st.download_button("📥 Scarica Dataset Completo", df.to_csv(index=False), "dati_completi.csv", "text/csv")
+        st.write(df_variation_mese)
     
+    with col2:
+        st.subheader("📈 Quota di Generazione Elettrica per Fonte")
+        fig, ax = plt.subplots(figsize=(10, 5))
+        df_paese.pivot(index='date', columns='series', values='generation_twh').plot(kind='area', stacked=True, alpha=0.7, ax=ax)
+        ax.set_title(f"Quota di Generazione - {paese_scelto}")
+        ax.set_ylabel('%')
+        plt.xlabel('Anno')
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+        buffer = BytesIO()
+        fig.savefig(buffer, format="png")
+        buffer.seek(0)
+        st.download_button("📥 Scarica Grafico", buffer, file_name=f"grafico_generazione_{paese_scelto}.png", mime="image/png")
 else:
     st.warning("Nessun dato disponibile!")
