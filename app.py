@@ -44,9 +44,27 @@ if not df_raw.empty:
     df = df.rename(columns={"entity_code": "Country", "series": "Source",
                             "generation_twh": "Generation (TWh)", "share_of_generation_pct": "Share (%)"})
     
+    # Creazione aggregati
+    groups = {
+        "EUR": ["AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK", "SVN", "ESP", "SWE"],
+        "G20": ["ARG", "AUS", "BRA", "CAN", "CHN", "FRA", "DEU", "IND", "IDN", "ITA", "JPN", "MEX", "RUS", "SAU", "ZAF", "KOR", "TUR", "GBR", "USA"],
+        "G7": ["CAN", "FRA", "DEU", "ITA", "JPN", "GBR", "USA"],
+        "G9": ["CAN", "FRA", "DEU", "ITA", "JPN", "GBR", "USA", "CHN", "IND"],
+        "World": df["Country"].unique().tolist()
+    }
+    
+    for group, countries in groups.items():
+        df_group = df[df["Country"].isin(countries)].groupby(["Date", "Source"], as_index=False)["Generation (TWh)"].sum()
+        df_group["Country"] = group
+        df = pd.concat([df, df_group], ignore_index=True)
+    
     # Ordinare i dati per data
     df = df.sort_values(by=["Country", "Date"])
-
+    
+    # Calcolo Y-o-Y Variation
+    df["Y-o-Y Variation (%)"] = df.groupby(["Country", "Source"])["Generation (TWh)"].pct_change(periods=12) * 100
+    df["Y-o-Y Variation (%)"] = df["Y-o-Y Variation (%)"].round(2)
+    
     # --- INTERFACCIA UTENTE: TABELLA ---
     st.subheader("Tabella Produzione Elettrica")
 
@@ -60,77 +78,26 @@ if not df_raw.empty:
     sources_options = ["All"] + all_sources
     table_sources = st.multiselect("Seleziona fonte/e per la tabella:", sources_options, default=["All"])
 
-    if table_view == "Mensile":
-        df_table = df.copy()
-        df_table["Year"] = df_table["Date"].dt.year
-    else:
-        df_table = df.copy()
-        df_table["Year"] = df_table["Date"].dt.year
-
-    years_available = sorted(df_table["Year"].unique())
-    years_options = ["All"] + years_available
-    table_years = st.multiselect("Seleziona anno/i per la tabella:", years_options, default=["All"])
-
-    filter_countries = all_countries if "All" in table_countries else table_countries
-    filter_sources = all_sources if "All" in table_sources else table_sources
-    filter_years = years_available if "All" in table_years else table_years
-
-    df_table = df_table[
-        (df_table["Country"].isin(filter_countries)) &
-        (df_table["Source"].isin(filter_sources)) &
-        (df_table["Year"].isin(filter_years))
-    ]
+    df_table = df[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "Y-o-Y Variation (%)"]].copy()
 
     st.dataframe(df_table, use_container_width=True)
     st.download_button("📥 Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
-    st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
 
-    # --- GRAFICO STATICO CON MATPLOTLIB ---
+    # --- GRAFICO ---
     st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
-    available_countries = sorted([str(c) for c in df["Country"].dropna().unique()] + ["EUR", "G20", "G7", "G9", "World"])
-
-    graph_country = st.selectbox("Seleziona un paese o un gruppo per il grafico:", available_countries)
-
+    graph_country = st.selectbox("Seleziona un paese o un gruppo per il grafico:", all_countries)
     df_graph = df[df["Country"] == graph_country]
-
     if df_graph.empty:
         st.warning(f"Nessun dato disponibile per {graph_country}.")
     else:
-        # Ordinare i dati per data nel grafico
-        df_graph = df_graph.sort_values(by=["Date"])
-
-        df_graph_plot = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
-        df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
-
-        color_map = {
-            "Coal": "#4d4d4d", "Other fossil": "#a6a6a6", "Gas": "#b5651d",
-            "Nuclear": "#ffdd44", "Solar": "#87CEEB", "Wind": "#aec7e8",
-            "Hydro": "#1f77b4", "Bioenergy": "#2ca02c", "Other renewables": "#17becf"
-        }
-
+        df_graph = df_graph.pivot(index='Date', columns='Source', values='Share (%)')
         fig, ax = plt.subplots(figsize=(10, 5))
-        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map.get(s, "#cccccc") for s in df_plot.columns])
-        ax.legend(loc='upper left')
+        df_graph.plot(kind='area', stacked=True, alpha=0.7, ax=ax)
         ax.set_title(f"Quota di Generazione - {graph_country}")
-        ax.set_ylabel('%')
-        ax.set_ylim(0, 100)
-        ax.set_xlabel('Anno')
-        plt.xticks(rotation=45)  # Ruota le date per migliorare la leggibilità
-        plt.tight_layout()
-
-        # --- VISUALIZZAZIONE GRAFICO ---
         st.pyplot(fig)
-
-        # --- PULSANTE DOWNLOAD GRAFICO ---
+        
         img_buffer = BytesIO()
         fig.savefig(img_buffer, format="png", dpi=300, bbox_inches="tight")
         img_buffer.seek(0)
 
-        st.download_button(
-            label="📥 Scarica il grafico",
-            data=img_buffer,
-            file_name=f"grafico_{graph_country}.png",
-            mime="image/png"
-        )
-else:
-    st.warning("Nessun dato disponibile!")
+        st.download_button("📥 Scarica il grafico", img_buffer, file_name=f"grafico_{graph_country}.png", mime="image/png")
