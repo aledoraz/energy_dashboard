@@ -195,5 +195,9 @@ if not df_raw.empty:
         st.pyplot(fig)
     else:
         st.warning("Nessun dato disponibile per il grafico!")
+
+# Pulsante per scaricare il DB completo preso con l'API
+    st.download_button("Scarica Grafico", df_raw.to_jpg(index=False), "df_plot.jpg")
+    
 else:
     st.warning("Nessun dato disponibile!")
