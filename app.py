@@ -80,7 +80,6 @@ if not df_raw.empty:
     df_original = df.copy()
     
     # --- CALCOLO VARIAZIONE YOY (MESSILE) ---
-    # Creiamo una copia per il calcolo mensile YoY
     df_month = df.copy()
     df_last_year = df_month.copy()
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
@@ -133,11 +132,22 @@ if not df_raw.empty:
     # Seleziona il dataset in base al tipo di visualizzazione
     if table_view == "Mensile":
         df_table = df_monthly.copy()
+        # Aggiungiamo la colonna "Year" estraendola dalla data in formato "MM-YYYY"
+        df_table["Year"] = df_table["Date"].str[-4:].astype(int)
     else:
         df_table = df_annual_final.copy()
+        df_table["Year"] = df_table["Date"].astype(int)
     
-    # Applica i filtri per Country e Source
-    df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
+    # Filtro per anno
+    available_years = sorted(df_table["Year"].unique())
+    table_year = st.selectbox("Seleziona anno:", available_years)
+    
+    # Applica i filtri per Country, Source e Anno
+    df_table = df_table[
+        (df_table["Country"] == table_country) &
+        (df_table["Source"].isin(table_source)) &
+        (df_table["Year"] == table_year)
+    ]
     
     # Funzione per colorare la colonna YoY
     def color_yoy(val):
