@@ -192,7 +192,10 @@ if not df_raw.empty:
     table_view = st.radio("Visualizzazione dati:", ("Mensile", "Annuale"))
     
     # Filtri con opzione "All" per Country, Source e Anno
-    all_countries = sorted(df["Country"].unique())
+    # Elimina i valori nulli e poi fai il sort
+    all_countries = df["Country"].dropna().unique()
+    all_countries = sorted(all_countries)
+
     countries_options = ["All"] + all_countries
     table_countries = st.multiselect("Seleziona paese/i per la tabella:", countries_options, default=["All"])
     
