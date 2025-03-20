@@ -48,40 +48,10 @@ if not df.empty:
     colonne_valide = [col for col in colonne_richieste if col in colonne_disponibili]
     df = df[colonne_valide]
     df["date"] = pd.to_datetime(df["date"])
-    df["generation_twh"] = df["generation_twh"].round(2)
-    
-    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
-    brown_sources = ["Coal", "Gas", "Other fossil"]
-    
-    df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
-    df_total["series"] = "Total"
-    df_total["share_of_generation_pct"] = 100.0
-    
-    df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
-    df_total_green["series"] = "Green"
-    df_total_green["share_of_generation_pct"] = (df_total_green["generation_twh"] / df_total["generation_twh"]).round(2) * 100
-    
-    df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
-    df_total_brown["series"] = "Brown"
-    df_total_brown["share_of_generation_pct"] = (df_total_brown["generation_twh"] / df_total["generation_twh"]).round(2) * 100
-    
-    df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
-    df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
-    
-    df = df.rename(columns={
-        "entity_code": "Country",
-        "date": "Date",
-        "series": "Source",
-        "generation_twh": "Generation (TWh)",
-        "share_of_generation_pct": "Share (%)"
-    })
-    
-    df = df.sort_values(by=["Country", "Source", "Date"])
-    
-    # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
+
+# Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
     df_last_year = df.copy()
-    df_last_year["Date"] = pd.to_datetime(df_last_year["Date"]) + pd.DateOffset(years=1)
-    
+    df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
     df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
                   on=["Country", "Source", "Date"], 
                   suffixes=("", "_last_year"), 
@@ -89,8 +59,19 @@ if not df.empty:
     df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / df["Generation (TWh)_last_year"]) * 100
     df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
     df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
-    df["Date"] = df["Date"].dt.strftime('%m-%Y')
     df_yoy = df[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
+
+    color_map = {
+        "Coal": "#4d4d4d",
+        "Other fossil": "#a6a6a6",
+        "Gas": "#b5651d",
+        "Nuclear": "#ffdd44",
+        "Solar": "#87CEEB",
+        "Wind": "#aec7e8",
+        "Hydro": "#1f77b4",
+        "Bioenergy": "#2ca02c",
+        "Other renewables": "#17becf"
+    }
     
     col1, col2 = st.columns([2, 3])
     
@@ -114,4 +95,4 @@ if not df.empty:
         st.pyplot(fig)
 else:
     st.warning("Nessun dato disponibile!")
-
+    
