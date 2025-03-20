@@ -8,6 +8,21 @@ from io import BytesIO
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
+import time
+
+st.title("Caricamento in corso...")
+
+# Placeholder per il testo e progress bar
+status_text = st.empty()
+progress_bar = st.progress(0)
+
+for i in range(100):
+    # Aggiorna il testo e la progress bar
+    status_text.text(f"Caricamento in corso... {i + 1}%")
+    progress_bar.progress(i + 1)
+    time.sleep(0.05)
+
+status_text.text("Caricamento completato!")
 def get_data():
     api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
