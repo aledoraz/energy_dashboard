@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 import matplotlib.pyplot as plt
-import time
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
