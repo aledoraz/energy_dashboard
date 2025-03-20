@@ -1,3 +1,4 @@
+pip install dash
 import dash
 from dash import dcc, html, dash_table, Input, Output
 import pandas as pd
