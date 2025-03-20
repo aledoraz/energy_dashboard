@@ -103,7 +103,7 @@ if not df.empty:
             "Other renewables": "#17becf"
         }
         
-        col1, col2 = st.columns([2, 3])
+    col1, col2 = st.columns([2, 3])
         
         with col1:
             st.subheader("📊 Produzione Elettricità YoY")
