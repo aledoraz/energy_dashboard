@@ -87,8 +87,8 @@ if not df_raw.empty:
 
     # --- GRAFICO STATICO CON MATPLOTLIB ---
     st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
-
-    available_countries = sorted(df["Country"].unique()) + ["EUR", "G20", "G7", "G9", "World"]
+    
+    available_countries = sorted(list(df["Country"].unique()) + ["EUR", "G20", "G7", "G9", "World"])
     graph_country = st.selectbox("Seleziona un paese o un gruppo per il grafico:", available_countries)
 
     df_graph = df[df["Country"] == graph_country]
