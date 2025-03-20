@@ -9,8 +9,6 @@ from io import BytesIO
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
-# --- SCARICAMENTO DATI ---
-@st.cache_data
 def get_data():
     api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
@@ -37,6 +35,7 @@ def get_data():
             return pd.DataFrame()
     return pd.DataFrame()
 
+# --- SCARICAMENTO DATI ---
 df_raw = get_data()
 
 if not df_raw.empty:
@@ -45,11 +44,50 @@ if not df_raw.empty:
     df['date'] = pd.to_datetime(df['date'])
     df = df.rename(columns={"entity_code": "Country", "date": "Date", "series": "Source",
                             "generation_twh": "Generation (TWh)", "share_of_generation_pct": "Share (%)"})
-    
-    # --- SELEZIONE PAESE PER IL GRAFICO ---
+
+    # --- INTERFACCIA UTENTE: TABELLA CON FILTRI ---
+    st.subheader("Tabella Produzione Elettrica")
+    table_view = st.radio("Visualizzazione dati:", ("Mensile", "Annuale"))
+
+    all_countries = df["Country"].dropna().unique()
+    all_countries = sorted(all_countries)
+
+    countries_options = ["All"] + all_countries
+    table_countries = st.multiselect("Seleziona paese/i per la tabella:", countries_options, default=["All"])
+
+    all_sources = sorted(df["Source"].unique())
+    sources_options = ["All"] + all_sources
+    table_sources = st.multiselect("Seleziona fonte/e per la tabella:", sources_options, default=["All"])
+
+    if table_view == "Mensile":
+        df_table = df.copy()
+        df_table["Year"] = df_table["Date"].dt.year
+    else:
+        df_table = df.copy()
+        df_table["Year"] = df_table["Date"].dt.year
+
+    years_available = sorted(df_table["Year"].unique())
+    years_options = ["All"] + years_available
+    table_years = st.multiselect("Seleziona anno/i per la tabella:", years_options, default=["All"])
+
+    filter_countries = all_countries if "All" in table_countries else table_countries
+    filter_sources = all_sources if "All" in table_sources else table_sources
+    filter_years = years_available if "All" in table_years else table_years
+
+    df_table = df_table[
+        (df_table["Country"].isin(filter_countries)) &
+        (df_table["Source"].isin(filter_sources)) &
+        (df_table["Year"].isin(filter_years))
+    ]
+
+    st.dataframe(df_table, use_container_width=True)
+    st.download_button("📥 Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
+    st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
+
+    # --- GRAFICO STATICO CON MATPLOTLIB ---
     st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
-    
-    available_countries = sorted(df["Country"].dropna().unique()) + ["EUR", "G20", "G7", "G9", "World"]
+
+    available_countries = sorted(df["Country"].unique()) + ["EUR", "G20", "G7", "G9", "World"]
     graph_country = st.selectbox("Seleziona un paese o un gruppo per il grafico:", available_countries)
 
     df_graph = df[df["Country"] == graph_country]
@@ -57,9 +95,8 @@ if not df_raw.empty:
     if df_graph.empty:
         st.warning("Nessun dato disponibile per il grafico!")
     else:
-        # --- CREAZIONE GRAFICO ---
-        df_graph = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
-        df_plot = df_graph.pivot(index='Date', columns='Source', values='Share (%)')
+        df_graph_plot = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
+        df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
 
         color_map = {
             "Coal": "#4d4d4d", "Other fossil": "#a6a6a6", "Gas": "#b5651d",
@@ -79,7 +116,7 @@ if not df_raw.empty:
         # --- VISUALIZZAZIONE GRAFICO ---
         st.pyplot(fig)
 
-        # --- AGGIUNTA PULSANTE DOWNLOAD ---
+        # --- PULSANTE DOWNLOAD GRAFICO ---
         img_buffer = BytesIO()
         fig.savefig(img_buffer, format="png", dpi=300, bbox_inches="tight")
         img_buffer.seek(0)
