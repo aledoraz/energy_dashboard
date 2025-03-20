@@ -14,8 +14,7 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        + f"?entity_code=ITA,DEU,FRA,CHN,USA,AUS,CAN,JPN"
-        + f"&start_date=2014-01&end_date=2025-01"
+        + f"?start_date=2014-01&end_date=2025-01"
         + f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         + f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
@@ -48,7 +47,45 @@ if not df_raw.empty:
     # Ordinare i dati per data
     df = df.sort_values(by=["Country", "Date"])
 
-    # --- INTERFACCIA UTENTE: SELEZIONE PAESE ---
+    # --- INTERFACCIA UTENTE: TABELLA ---
+    st.subheader("Tabella Produzione Elettrica")
+
+    table_view = st.radio("Visualizzazione dati:", ("Mensile", "Annuale"))
+
+    all_countries = sorted(df["Country"].dropna().unique())
+    countries_options = ["All"] + all_countries
+    table_countries = st.multiselect("Seleziona paese/i per la tabella:", countries_options, default=["All"])
+
+    all_sources = sorted(df["Source"].unique())
+    sources_options = ["All"] + all_sources
+    table_sources = st.multiselect("Seleziona fonte/e per la tabella:", sources_options, default=["All"])
+
+    if table_view == "Mensile":
+        df_table = df.copy()
+        df_table["Year"] = df_table["Date"].dt.year
+    else:
+        df_table = df.copy()
+        df_table["Year"] = df_table["Date"].dt.year
+
+    years_available = sorted(df_table["Year"].unique())
+    years_options = ["All"] + years_available
+    table_years = st.multiselect("Seleziona anno/i per la tabella:", years_options, default=["All"])
+
+    filter_countries = all_countries if "All" in table_countries else table_countries
+    filter_sources = all_sources if "All" in table_sources else table_sources
+    filter_years = years_available if "All" in table_years else table_years
+
+    df_table = df_table[
+        (df_table["Country"].isin(filter_countries)) &
+        (df_table["Source"].isin(filter_sources)) &
+        (df_table["Year"].isin(filter_years))
+    ]
+
+    st.dataframe(df_table, use_container_width=True)
+    st.download_button("📥 Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
+    st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
+
+    # --- GRAFICO STATICO CON MATPLOTLIB ---
     st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
 
     available_countries = sorted(df["Country"].unique()) + ["EUR", "G20", "G7", "G9", "World"]
