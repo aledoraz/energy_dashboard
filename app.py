@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -41,13 +40,9 @@ df = get_data()
 
 if not df.empty:
     # --- PREPARAZIONE DEI DATI ---
-    colonne_disponibili = df.columns
-    colonne_richieste = ["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]
-
-# Mantieni solo le colonne che esistono realmente
-    colonne_valide = [col for col in colonne_richieste if col in colonne_disponibili]
-    df = df[colonne_valide]
-    df["date"] = pd.to_datetime(df["date"])
+    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
+    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
+    df = df[df['date'] >= '01-2014']
     df["generation_twh"] = df["generation_twh"].round(2)
     
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
@@ -77,11 +72,11 @@ if not df.empty:
     })
     
     df = df.sort_values(by=["Country", "Source", "Date"])
-    
+    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
+
     # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
     df_last_year = df.copy()
-    df_last_year["Date"] = pd.to_datetime(df_last_year["Date"]) + pd.DateOffset(years=1)
-    
+    df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
     df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
                   on=["Country", "Source", "Date"], 
                   suffixes=("", "_last_year"), 
@@ -89,8 +84,19 @@ if not df.empty:
     df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / df["Generation (TWh)_last_year"]) * 100
     df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
     df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
-    df["Date"] = df["Date"].dt.strftime('%m-%Y')
     df_yoy = df[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]]
+
+    color_map = {
+        "Coal": "#4d4d4d",
+        "Other fossil": "#a6a6a6",
+        "Gas": "#b5651d",
+        "Nuclear": "#ffdd44",
+        "Solar": "#87CEEB",
+        "Wind": "#aec7e8",
+        "Hydro": "#1f77b4",
+        "Bioenergy": "#2ca02c",
+        "Other renewables": "#17becf"
+    }
     
     col1, col2 = st.columns([2, 3])
     
@@ -114,4 +120,3 @@ if not df.empty:
         st.pyplot(fig)
 else:
     st.warning("Nessun dato disponibile!")
-
