@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+!pip install plotly.express
 import plotly.express as px
 import time
 
