@@ -1,14 +1,14 @@
-import dash
-from dash import dcc, html, dash_table, Input, Output
+import streamlit as st
 import pandas as pd
 import requests
+import matplotlib.pyplot as plt
 import time
-import plotly.express as px
-from datetime import datetime
 
-# --- FUNZIONE PER RECUPERARE I DATI DALL'API ---
+# --- CONFIGURAZIONE ---
+st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
+
 def get_data():
-    api_key = "9197eb8d-b2c5-4031-9300-78eb1d722ce4"  # Sostituisci con la tua API key
+    api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
@@ -25,48 +25,46 @@ def get_data():
             if "data" in data and isinstance(data["data"], list) and len(data["data"]) > 0:
                 return pd.DataFrame(data["data"])
             else:
-                print("Dati API ricevuti ma vuoti o in formato inatteso.")
+                st.warning("Dati API ricevuti ma vuoti o in formato inatteso.")
                 return pd.DataFrame()
         elif response.status_code == 500:
             time.sleep(20)
         else:
             return pd.DataFrame()
+    
     return pd.DataFrame()
 
-# --- SCARICA ED ELABORA I DATI ---
-df = get_data()
+# --- SCARICAMENTO DATI ---
+df_raw = get_data()
 
-if not df.empty:
-    # Seleziona le colonne utili e formatta la data
-    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]].copy()
-    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
-    df = df[df['date'] >= '01-2014']
+if not df_raw.empty:
+    # --- PREPARAZIONE DATI INIZIALI (dati mensili grezzi) ---
+    df = df_raw[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]].copy()
+    df['date'] = pd.to_datetime(df['date'])
+    df = df[df['date'] >= pd.to_datetime("2014-01")]
     df["generation_twh"] = df["generation_twh"].round(2)
     
-    # Definisce le fonti per aggregazioni
+    # Definiamo le fonti per aggregazioni
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
     brown_sources = ["Coal", "Gas", "Other fossil"]
     
-    # Aggregato "Total" per ogni country e data
+    # Calcolo delle serie aggregate mensili
     df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total["series"] = "Total"
     df_total["share_of_generation_pct"] = 100.0
-    
-    # Aggregato "Green"
+
     df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_green["series"] = "Green"
     df_total_green["share_of_generation_pct"] = (df_total_green["generation_twh"] / df_total["generation_twh"]).round(2) * 100
-    
-    # Aggregato "Brown"
+
     df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
     df_total_brown["series"] = "Brown"
     df_total_brown["share_of_generation_pct"] = (df_total_brown["generation_twh"] / df_total["generation_twh"]).round(2) * 100
-    
-    # Combina i dati originali con gli aggregati
+
     df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
     df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
     
-    # Rinomina le colonne per uniformità
+    # Rinominiamo le colonne
     df = df.rename(columns={
         "entity_code": "Country",
         "date": "Date",
@@ -75,118 +73,127 @@ if not df.empty:
         "share_of_generation_pct": "Share (%)"
     })
     
-    # Ordina i dati e converte la colonna Date in datetime
+    # Ordinamento e conversione della data in datetime
     df = df.sort_values(by=["Country", "Source", "Date"])
-    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
     
-    # Calcola la variazione YoY: crea una copia dei dati con la data spostata di +1 anno
-    df_last_year = df.copy()
+    # Salviamo una copia base per aggregazioni annuali
+    df_original = df.copy()
+    
+    # --- CALCOLO VARIAZIONE YOY (MESSILE) ---
+    # Creiamo una copia per il calcolo mensile YoY
+    df_month = df.copy()
+    df_last_year = df_month.copy()
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
-    df = df.merge(
+    df_month = df_month.merge(
         df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
         on=["Country", "Source", "Date"],
         suffixes=("", "_last_year"),
         how="left"
     )
-    df["YoY Variation (%)"] = ((df["Generation (TWh)"] - df["Generation (TWh)_last_year"]) / 
-                               df["Generation (TWh)_last_year"]) * 100
-    df["YoY Variation (%)"] = df["YoY Variation (%)"].round(2)
-    df.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+    df_month["YoY Variation (%)"] = ((df_month["Generation (TWh)"] - df_month["Generation (TWh)_last_year"]) / df_month["Generation (TWh)_last_year"]) * 100
+    df_month["YoY Variation (%)"] = df_month["YoY Variation (%)"].round(2)
+    df_month.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+    # Selezioniamo le colonne utili e formattiamo la data in "MM-YYYY"
+    df_monthly = df_month[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]].copy()
+    df_monthly["Date"] = df_monthly["Date"].dt.strftime('%m-%Y')
     
-    # Crea il dataset finale per la visualizzazione
-    df_yoy = df[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]].copy()
-    # Crea una colonna stringa per la data (per la tabella)
-    df_yoy["Date_str"] = df_yoy["Date"].dt.strftime('%m-%Y')
-else:
-    df_yoy = pd.DataFrame()
-
-# Mappa colori per il grafico
-color_map = {
-    "Coal": "#4d4d4d",
-    "Other fossil": "#a6a6a6",
-    "Gas": "#b5651d",
-    "Nuclear": "#ffdd44",
-    "Solar": "#87CEEB",
-    "Wind": "#aec7e8",
-    "Hydro": "#1f77b4",
-    "Bioenergy": "#2ca02c",
-    "Other renewables": "#17becf"
-}
-
-# --- CONFIGURAZIONE DELL'APP DASH ---
-app = dash.Dash(__name__)
-server = app.server  # per eventuali deploy
-
-# Layout della dashboard con due colonne
-app.layout = html.Div([
-    html.H1("Dashboard Generazione Elettrica", style={"textAlign": "center"}),
-    html.Div([
-        html.Div([
-            html.H3("📊 Produzione Elettricità YoY"),
-            html.Label("Seleziona un paese:"),
-            dcc.Dropdown(
-                id="country-dropdown",
-                options=[{"label": c, "value": c} for c in sorted(df_yoy["Country"].unique())],
-                value=sorted(df_yoy["Country"].unique())[0]
-            ),
-            html.Br(),
-            dash_table.DataTable(
-                id="table-data",
-                columns=[{"name": col, "id": col} for col in ["Country", "Date_str", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]],
-                data=df_yoy.to_dict("records"),
-                page_size=10,
-                style_cell={'textAlign': 'center'},
-                style_header={'fontWeight': 'bold'}
-            ),
-            html.Br(),
-            html.Button("📥 Scarica Dati", id="download-btn"),
-            dcc.Download(id="download-dataframe-csv")
-        ], style={"width": "45%", "display": "inline-block", "verticalAlign": "top", "padding": "10px"}),
-        html.Div([
-            html.H3("📈 Quota di Generazione Elettrica per Fonte"),
-            dcc.Graph(id="area-chart")
-        ], style={"width": "50%", "display": "inline-block", "padding": "10px"})
-    ])
-])
-
-# --- CALLBACK PER AGGIORNARE TABELLA E GRAFICO IN BASE AL PAESE SELEZIONATO ---
-@app.callback(
-    [Output("table-data", "data"),
-     Output("area-chart", "figure")],
-    [Input("country-dropdown", "value")]
-)
-def update_dashboard(selected_country):
-    # Filtra i dati per il paese selezionato
-    filtered_df = df_yoy[df_yoy["Country"] == selected_country]
-    table_data = filtered_df.to_dict("records")
+    # --- AGGREGAZIONE DEI DATI A LIVELLO ANNUALE ---
+    df_annual = df_original.copy()
+    df_annual['Year'] = df_annual["Date"].dt.year
+    # Sommiamo la generazione per ogni anno, paese e fonte
+    annual = df_annual.groupby(['Country', 'Source', 'Year'])['Generation (TWh)'].sum().reset_index()
+    # Recuperiamo il totale annuale per ciascun paese
+    annual_total = annual[annual['Source'] == 'Total'][['Country', 'Year', 'Generation (TWh)']].rename(
+        columns={'Generation (TWh)': 'Annual Total'}
+    )
+    annual = annual.merge(annual_total, on=['Country', 'Year'], how='left')
+    # Calcoliamo la quota: se la fonte è Total, la quota è 100 altrimenti calcolata in base al totale annuale
+    annual['Share (%)'] = annual.apply(
+        lambda row: 100 if row['Source'] == 'Total' else round((row['Generation (TWh)'] / row['Annual Total']) * 100, 2),
+        axis=1
+    )
+    # Calcoliamo la variazione YoY annuale
+    annual = annual.sort_values(['Country', 'Source', 'Year'])
+    annual['YoY Variation (%)'] = annual.groupby(['Country', 'Source'])['Generation (TWh)'].pct_change() * 100
+    annual['YoY Variation (%)'] = annual['YoY Variation (%)'].round(2)
+    # Creiamo una colonna Date con l'anno (per uniformare la visualizzazione)
+    annual['Date'] = annual['Year'].astype(str)
+    df_annual_final = annual[['Country', 'Date', 'Source', 'Generation (TWh)', 'Share (%)', 'YoY Variation (%)']]
     
-    # Prepara i dati per il grafico: escludi le fonti aggregate "Total", "Green" e "Brown"
-    filtered_plot = filtered_df[~filtered_df["Source"].isin(["Total", "Green", "Brown"])]
-    if not filtered_plot.empty:
-        # Crea una tabella pivot: righe = Date, colonne = Source, valori = Share (%)
-        pivot_df = filtered_plot.pivot(index="Date", columns="Source", values="Share (%)")
-        pivot_df = pivot_df.reset_index()
-        # Converte la colonna Date in stringa per l'asse x
-        pivot_df["Date_str"] = pivot_df["Date"].dt.strftime('%m-%Y')
-        # Crea il grafico area usando Plotly Express
-        fig = px.area(pivot_df, x="Date_str", y=pivot_df.columns[1:-1],
-                      title=f"Quota di Generazione - {selected_country}")
-        fig.update_layout(legend=dict(x=0, y=1),
-                          xaxis_title="Anno", yaxis_title="%",
-                          yaxis_range=[0, 100])
+    # --- INTERFACCIA UTENTE: TABELLA CON FILTRI ---
+    st.subheader("Tabella Produzione Elettrica")
+    # Selezione visualizzazione: Mensile o Annuale
+    table_view = st.radio("Visualizzazione dati:", ("Mensile", "Annuale"))
+    # Filtro per Country (tabella)
+    table_country = st.selectbox("Seleziona un paese per la tabella:", sorted(df["Country"].unique()))
+    # Filtro per Source (multiselezione)
+    available_sources = sorted(df["Source"].unique())
+    table_source = st.multiselect("Seleziona una fonte:", available_sources, default=available_sources)
+    
+    # Seleziona il dataset in base al tipo di visualizzazione
+    if table_view == "Mensile":
+        df_table = df_monthly.copy()
     else:
-        fig = {}
-    return table_data, fig
-
-# --- CALLBACK PER IL DOWNLOAD DEI DATI CSV ---
-@app.callback(
-    Output("download-dataframe-csv", "data"),
-    [Input("download-btn", "n_clicks")],
-    prevent_initial_call=True
-)
-def download_csv(n_clicks):
-    return dcc.send_data_frame(df_yoy.to_csv, "dati_variation.csv", index=False)
-
-# --- AVVIO DELL'APP ---
-if __name__ == '__main__':
-    app.run_server(debug=True)
+        df_table = df_annual_final.copy()
+    
+    # Applica i filtri per Country e Source
+    df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
+    
+    # Funzione per colorare la colonna YoY
+    def color_yoy(val):
+        if pd.isna(val):
+            return ""
+        color = "green" if val > 0 else "red" if val < 0 else "black"
+        return f"color: {color}"
+    
+    styled_table = df_table.style.applymap(color_yoy, subset=["YoY Variation (%)"]).format({
+        "Generation (TWh)": "{:.2f}",
+        "Share (%)": "{:.2f}",
+        "YoY Variation (%)": "{:.2f}"
+    })
+    
+    st.dataframe(styled_table, use_container_width=True)
+    
+    # Pulsante per scaricare i dati filtrati della tabella
+    st.download_button("📥 Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
+    
+    # Pulsante per scaricare il DB completo preso con l'API
+    st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
+    
+    # --- INTERFACCIA UTENTE: GRAFICO ---
+    st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
+    # Filtro per Country specifico per il grafico (indipendente dal filtro tabella)
+    graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
+    
+    # Utilizziamo i dati mensili per il grafico e filtriamo per il paese scelto
+    df_graph = df_monthly[df_monthly["Country"] == graph_country]
+    # Escludiamo le fonti aggregate
+    df_graph_plot = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
+    # Pivot per creare un grafico a area
+    df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
+    
+    color_map = {
+        "Coal": "#4d4d4d",
+        "Other fossil": "#a6a6a6",
+        "Gas": "#b5651d",
+        "Nuclear": "#ffdd44",
+        "Solar": "#87CEEB",
+        "Wind": "#aec7e8",
+        "Hydro": "#1f77b4",
+        "Bioenergy": "#2ca02c",
+        "Other renewables": "#17becf"
+    }
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    if not df_plot.empty:
+        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map[s] for s in df_plot.columns])
+        ax.set_title(f"Quota di Generazione - {graph_country}")
+        ax.set_ylabel('%')
+        ax.set_ylim(0, 100)
+        ax.set_xlabel('Anno')
+        plt.tight_layout()
+        st.pyplot(fig)
+    else:
+        st.warning("Nessun dato disponibile per il grafico!")
+else:
+    st.warning("Nessun dato disponibile!")
