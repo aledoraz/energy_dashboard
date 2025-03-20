@@ -263,16 +263,15 @@ if not df_raw.empty:
         ax.set_xlabel('Anno')
         plt.tight_layout()
         st.pyplot(fig)
-    
+      
+    else:
+        st.warning("Nessun dato disponibile per il grafico!")
+
     st.download_button(
             label="📥 Scarica il grafico",
             data=img_buffer,
             file_name=f"grafico_{graph_country}.png",
             mime="image/png"
         )
-
-    
-    else:
-        st.warning("Nessun dato disponibile per il grafico!")
 else:
     st.warning("Nessun dato disponibile!")
