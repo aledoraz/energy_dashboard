@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import requests
@@ -40,9 +41,13 @@ df = get_data()
 
 if not df.empty:
     # --- PREPARAZIONE DEI DATI ---
-    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
-    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
-    df = df[df['date'] >= '01-2014']
+    colonne_disponibili = df.columns
+    colonne_richieste = ["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]
+
+# Mantieni solo le colonne che esistono realmente
+    colonne_valide = [col for col in colonne_richieste if col in colonne_disponibili]
+    df = df[colonne_valide]
+    df["date"] = pd.to_datetime(df["date"])
     df["generation_twh"] = df["generation_twh"].round(2)
     
     green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
@@ -70,8 +75,9 @@ if not df.empty:
         "generation_twh": "Generation (TWh)",
         "share_of_generation_pct": "Share (%)"
     })
-    
-    df = df.sort_values(by=["Country", "Source", "Date"])
+
+
+df = df.sort_values(by=["Country", "Source", "Date"])
     df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
 
     # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
