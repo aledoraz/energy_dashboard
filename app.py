@@ -254,20 +254,23 @@ if not df_raw.empty:
     }
     
     fig, ax = plt.subplots(figsize=(10, 5))
-    if not df_plot.empty:
-        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map[s] for s in df_plot.columns])
+    df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map.get(s, "#cccccc") for s in df_plot.columns])
         ax.legend(loc='upper left')
         ax.set_title(f"Quota di Generazione - {graph_country}")
         ax.set_ylabel('%')
         ax.set_ylim(0, 100)
         ax.set_xlabel('Anno')
         plt.tight_layout()
-        st.pyplot(fig)
-      
-    else:
-        st.warning("Nessun dato disponibile per il grafico!")
 
-    st.download_button(
+        # --- VISUALIZZAZIONE GRAFICO ---
+        st.pyplot(fig)
+
+        # --- AGGIUNTA PULSANTE DOWNLOAD ---
+        img_buffer = BytesIO()
+        fig.savefig(img_buffer, format="png", dpi=300, bbox_inches="tight")
+        img_buffer.seek(0)
+
+        st.download_button(
             label="📥 Scarica il grafico",
             data=img_buffer,
             file_name=f"grafico_{graph_country}.png",
