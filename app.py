@@ -138,15 +138,15 @@ if not df_raw.empty:
         df_table = df_annual_final.copy()
         df_table["Year"] = df_table["Date"].astype(int)
     
-    # Filtro per anno
+    # Filtro per anno con scelte multiple
     available_years = sorted(df_table["Year"].unique())
-    table_year = st.selectbox("Seleziona anno:", available_years)
+    table_year = st.multiselect("Seleziona anno/i:", available_years, default=available_years)
     
     # Applica i filtri per Country, Source e Anno
     df_table = df_table[
         (df_table["Country"] == table_country) &
         (df_table["Source"].isin(table_source)) &
-        (df_table["Year"] == table_year)
+        (df_table["Year"].isin(table_year))
     ]
     
     # Funzione per colorare la colonna YoY
