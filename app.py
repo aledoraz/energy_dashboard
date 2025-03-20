@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -41,15 +40,41 @@ df = get_data()
 
 if not df.empty:
     # --- PREPARAZIONE DEI DATI ---
-    colonne_disponibili = df.columns
-    colonne_richieste = ["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]
+    df = df[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]]
+    df['date'] = pd.to_datetime(df['date']).dt.strftime('%m-%Y')
+    df = df[df['date'] >= '01-2014']
+    df["generation_twh"] = df["generation_twh"].round(2)
+    
+    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
+    brown_sources = ["Coal", "Gas", "Other fossil"]
+    
+    df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
+    df_total["series"] = "Total"
+    df_total["share_of_generation_pct"] = 100.0
+    
+    df_total_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
+    df_total_green["series"] = "Green"
+    df_total_green["share_of_generation_pct"] = (df_total_green["generation_twh"] / df_total["generation_twh"]).round(2) * 100
+    
+    df_total_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
+    df_total_brown["series"] = "Brown"
+    df_total_brown["share_of_generation_pct"] = (df_total_brown["generation_twh"] / df_total["generation_twh"]).round(2) * 100
+    
+    df = pd.concat([df, df_total, df_total_green, df_total_brown], ignore_index=True)
+    df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
+    
+    df = df.rename(columns={
+        "entity_code": "Country",
+        "date": "Date",
+        "series": "Source",
+        "generation_twh": "Generation (TWh)",
+        "share_of_generation_pct": "Share (%)"
+    })
+    
+    df = df.sort_values(by=["Country", "Source", "Date"])
+    df["Date"] = pd.to_datetime(df["Date"], format='%m-%Y')
 
-# Mantieni solo le colonne che esistono realmente
-    colonne_valide = [col for col in colonne_richieste if col in colonne_disponibili]
-    df = df[colonne_valide]
-    df["date"] = pd.to_datetime(df["date"])
-
-# Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
+    # Creiamo una copia del dataset con l'anno spostato di +1 per il confronto
     df_last_year = df.copy()
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
     df = df.merge(df_last_year[["Country", "Source", "Date", "Generation (TWh)"]], 
@@ -95,4 +120,3 @@ if not df.empty:
         st.pyplot(fig)
 else:
     st.warning("Nessun dato disponibile!")
-    
