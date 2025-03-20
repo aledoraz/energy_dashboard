@@ -105,14 +105,14 @@ if not df.empty:
         
     col1, col2 = st.columns([2, 3])
         
-        with col1:
+    with col1:
             st.subheader("📊 Produzione Elettricità YoY")
             paese_scelto = st.selectbox("Seleziona un paese:", df["Country"].unique())
             df_paese = df_yoy[df_yoy["Country"] == paese_scelto]
             st.write(df_paese.style.format({"Generation (TWh)": "{:.2f}", "Share (%)": "{:.2f}", "YoY Variation (%)": "{:.2f}"}))
             st.download_button("📥 Scarica Dati", df_paese.to_csv(index=False), "dati_variation.csv", "text/csv")
         
-        with col2:
+    with col2:
             st.subheader("📈 Quota di Generazione Elettrica per Fonte")
             fig, ax = plt.subplots(figsize=(10, 5))
             df_plot = df_paese[~df_paese["Source"].isin(["Total", "Green", "Brown"])].pivot(index='Date', columns='Source', values='Share (%)')
