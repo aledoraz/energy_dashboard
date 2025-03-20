@@ -9,25 +9,14 @@ from io import BytesIO
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
-# Calcola la data finale come il mese precedente a oggi
-today = datetime.today()
-if today.month == 1:
-    end_year = today.year - 1
-    end_month = 12
-else:
-    end_year = today.year
-    end_month = today.month - 1
-end_date = f"{end_year}-{end_month:02d}"
-start_date = "2010-01"
-
 def get_data():
     api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
     # Nota: non viene più passato il parametro entity_code per ottenere tutti i paesi
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        f"?start_date={start_date}"
-        f"&end_date={end_date}"
+        f"?start_date=2010-01"
+        f"&end_date=2025-01"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
