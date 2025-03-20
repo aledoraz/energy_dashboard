@@ -14,7 +14,6 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     # Nota: non viene più passato il parametro entity_code per ottenere tutti i paesi
     query_url = (
-    query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
         + f"?entity_code=ITA,DEU,FRA,CHN,USA,AUS,CAN,JPN"
         + f"&start_date=2014-01&end_date=2025-01"
