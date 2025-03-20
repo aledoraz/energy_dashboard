@@ -18,7 +18,7 @@ else:
     end_year = today.year
     end_month = today.month - 1
 end_date = f"{end_year}-{end_month:02d}"
-start_date = "2000-01"
+start_date = "2010-01"
 
 def get_data():
     api_key = st.secrets["API_KEY"]
