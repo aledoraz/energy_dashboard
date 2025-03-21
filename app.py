@@ -204,7 +204,7 @@ if not df_raw.empty:
         "Other renewables": "#17becf"
     }
 
-import matplotlib.dates as mdates
+    import matplotlib.dates as mdates
 
     fig, ax = plt.subplots(figsize=(10, 5))
     if not df_plot.empty:
