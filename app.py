@@ -84,7 +84,7 @@ if not df_raw.empty
     ]
 
     st.dataframe(df_table, use_container_width=True)
-    st.download_button(📥 Scarica Dati Tabella, df_table.to_csv(index=False), dati_tabella.csv, textcsv)
+    st.download_button(Scarica Dati Tabella, df_table.to_csv(index=False), dati_tabella.csv, textcsv)
     st.download_button(Scarica DB Completo, df_raw.to_csv(index=False), db_completo.csv, textcsv)
 
     # --- GRAFICO STATICO CON MATPLOTLIB ---
@@ -129,7 +129,7 @@ if not df_raw.empty
         img_buffer.seek(0)
 
         st.download_button(
-            label=📥 Scarica il grafico,
+            label=Scarica il grafico,
             data=img_buffer,
             file_name=fgrafico_{graph_country}.png,
             mime=imagepng
