@@ -203,7 +203,9 @@ if not df_raw.empty:
         "Bioenergy": "#2ca02c",
         "Other renewables": "#17becf"
     }
-    
+
+import matplotlib.dates as mdates
+
     fig, ax = plt.subplots(figsize=(10, 5))
     if not df_plot.empty:
         df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map[s] for s in df_plot.columns])
@@ -212,8 +214,15 @@ if not df_raw.empty:
         ax.set_ylabel('%')
         ax.set_ylim(0, 100)
         ax.set_xlabel('Anno')
+    
+        # 📌 Sistemiamo la scala temporale dell'asse X
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=6))  # Tick ogni 6 mesi
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%Y'))  # Formato MM-YYYY
+        plt.xticks(rotation=45)  # Ruota le date per leggibilità
+        
         plt.tight_layout()
         st.pyplot(fig)
+
 
             # Salva il grafico come immagine in memoria per il download
         import io
