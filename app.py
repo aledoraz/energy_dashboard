@@ -216,7 +216,6 @@ if not df_raw.empty:
         ax.set_xlabel('Anno')
     
         # 📌 Sistemiamo la scala temporale dell'asse X
-        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=6))  # Tick ogni 6 mesi
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%Y'))  # Formato MM-YYYY
         plt.xticks(rotation=45)  # Ruota le date per leggibilità
         
