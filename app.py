@@ -9,14 +9,15 @@ from io import BytesIO
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title=Dashboard Generazione Elettrica, layout=wide)
 
-def get_data()
-    api_key = st.secrets[API_KEY]
-    base_url = httpsapi.ember-energy.org
+def get_data():
+    api_key = st.secrets["API_KEY"]
+    base_url = "https://api.ember-energy.org"
     query_url = (
-        f{base_url}v1electricity-generationmonthly
-        + fstart_date=2014-01&end_date=2025-01
-        + f&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind
-        + f&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}
+        f"{base_url}/v1/electricity-generation/monthly"
+        f"?entity_code=ITA,DEU,FRA,CHN,USA,AUS,CAN,JPN"
+        f"&start_date=2014-01&end_date=2025-01"
+        f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
+        f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
     
     for attempt in range(5)
