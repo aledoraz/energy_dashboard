@@ -7,7 +7,7 @@ from datetime import datetime
 from io import BytesIO
 
 # --- CONFIGURAZIONE ---
-st.set_page_config(page_title=Dashboard Generazione Elettrica, layout=wide)
+st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
 def get_data():
     api_key = st.secrets["API_KEY"]
