@@ -68,7 +68,7 @@ if not df_raw.empty:
     df = df.rename(columns={
         "entity_code": "Country",
         "date": "Date",
-        "series": "Source",
+        "series": "",
         "generation_twh": "Generation (TWh)",
         "share_of_generation_pct": "Share (%)"
     })
@@ -130,6 +130,15 @@ if not df_raw.empty:
     # Filtro per Source (multiselezione)
     available_sources = sorted(df["Source"].unique())
     table_source = st.multiselect("Seleziona una fonte:", available_sources, default=available_sources)
+
+    # Filtro per Anno (con multiselezione)
+    if table_view == "Mensile":
+        available_years = sorted(df_monthly["Date"].str[-4:].unique())
+    else:
+        available_years = sorted(df_annual_final["Date"].unique())
+    
+    selected_years = st.multiselect("Seleziona uno o più anni:", available_years, default=available_years)
+
     
     # Seleziona il dataset in base al tipo di visualizzazione
     if table_view == "Mensile":
@@ -140,6 +149,8 @@ if not df_raw.empty:
     # Applica i filtri per Country e Source
     df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
     
+    df_table = df_table[df_table["Date"].str[-4:].isin(selected_years)]
+
     # Funzione per colorare la colonna YoY
     def color_yoy(val):
         if pd.isna(val):
@@ -194,6 +205,20 @@ if not df_raw.empty:
         ax.set_xlabel('Anno')
         plt.tight_layout()
         st.pyplot(fig)
+
+            # Salva il grafico come immagine in memoria per il download
+    import io
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    buf.seek(0)
+
+    st.download_button(
+        label="📸 Scarica Grafico",
+        data=buf,
+        file_name=f"grafico_{graph_country}.png",
+        mime="image/png"
+    )
+
     else:
         st.warning("Nessun dato disponibile per il grafico!")
 else:
