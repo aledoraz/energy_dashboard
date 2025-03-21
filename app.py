@@ -207,17 +207,17 @@ if not df_raw.empty:
         st.pyplot(fig)
 
             # Salva il grafico come immagine in memoria per il download
-    import io
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png")
-    buf.seek(0)
-
-    st.download_button(
-        label="📸 Scarica Grafico",
-        data=buf,
-        file_name=f"grafico_{graph_country}.png",
-        mime="image/png"
-    )
+        import io
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+        buf.seek(0)
+    
+        st.download_button(
+            label="📸 Scarica Grafico",
+            data=buf,
+            file_name=f"grafico_{graph_country}.png",
+            mime="image/png"
+        )
 
     else:
         st.warning("Nessun dato disponibile per il grafico!")
