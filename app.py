@@ -126,6 +126,10 @@ if not df_raw.empty:
     table_view = st.radio("Visualizzazione dati:", ("Mensile", "Annuale"))
     # Filtro per Country (tabella)
     table_country = st.selectbox("Seleziona un paese per la tabella:", sorted(df["Country"].unique()))
+
+     # Filtro per Year (tabella)
+    table_country = st.selectbox("Seleziona un anno per la tabella:", sorted(df["Year"].unique()))
+    
     # Filtro per Source (multiselezione)
     available_sources = sorted(df["Source"].unique())
     table_source = st.multiselect("Seleziona una fonte:", available_sources, default=available_sources)
