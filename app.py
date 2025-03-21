@@ -141,7 +141,7 @@ if not df_raw.empty:
         df_table = df_annual_final.copy()
     
     # Applica i filtri per Country e Source
-    df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
+    df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source)) & (df_table["Year"].isin(Year))]
     
     # Funzione per colorare la colonna YoY
     def color_yoy(val):
