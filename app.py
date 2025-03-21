@@ -184,12 +184,12 @@ if not df_raw.empty:
     # Escludiamo le fonti aggregate
     df_graph_plot = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
 
-    df_graph_plot = df_graph_plot.sort_values(['Country', 'Date'])
+    df_graph_plot = df_graph_plot.sort_values(['Country', 'Date', 'Source'])
 
     # Pivot per creare un grafico a area
     df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
 
-    df_plot = df_plot.sort_values(['Country', 'Date'])
+    df_plot = df_plot.sort_values(['Country', 'Date', 'Source'])
 
     st.subheader("Dati utilizzati per il grafico (df_graph_plot)")
     st.dataframe(df_graph_plot)
