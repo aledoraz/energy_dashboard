@@ -70,7 +70,7 @@ if not df_raw.empty:
     df = df.rename(columns={
         "entity_code": "Country",
         "date": "Date",
-        "series": "",
+        "series": "Source",
         "generation_twh": "Generation (TWh)",
         "share_of_generation_pct": "Share (%)"
     })
