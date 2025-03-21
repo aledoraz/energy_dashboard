@@ -216,14 +216,13 @@ if not df_raw.empty:
         ax.set_xlabel('Anno')
     
         # 📌 Sistemiamo la scala temporale dell'asse X
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%Y'))  # Formato MM-YYYY
         plt.xticks(rotation=45)  # Ruota le date per leggibilità
         
         plt.tight_layout()
         st.pyplot(fig)
 
 
-            # Salva il grafico come immagine in memoria per il download
+        # Salva il grafico come immagine in memoria per il download
         import io
         buf = io.BytesIO()
         fig.savefig(buf, format="png")
