@@ -127,9 +127,6 @@ if not df_raw.empty:
     # Filtro per Country (tabella)
     table_country = st.selectbox("Seleziona un paese per la tabella:", sorted(df["Country"].unique()))
 
-     # Filtro per Year (tabella)
-    table_country = st.selectbox("Seleziona un anno per la tabella:", sorted(df["Year"].unique()))
-    
     # Filtro per Source (multiselezione)
     available_sources = sorted(df["Source"].unique())
     table_source = st.multiselect("Seleziona una fonte:", available_sources, default=available_sources)
@@ -141,7 +138,7 @@ if not df_raw.empty:
         df_table = df_annual_final.copy()
     
     # Applica i filtri per Country e Source
-    df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source)) & (df_table["Year"].isin(Year))]
+    df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
     
     # Funzione per colorare la colonna YoY
     def color_yoy(val):
