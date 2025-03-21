@@ -207,6 +207,7 @@ if not df_raw.empty:
     fig, ax = plt.subplots(figsize=(10, 5))
     if not df_plot.empty:
         df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map[s] for s in df_plot.columns])
+        ax.legend(loc='upper left')
         ax.set_title(f"Quota di Generazione - {graph_country}")
         ax.set_ylabel('%')
         ax.set_ylim(0, 100)
