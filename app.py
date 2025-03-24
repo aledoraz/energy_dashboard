@@ -169,7 +169,7 @@ if not df_raw.empty:
     st.dataframe(styled_table, use_container_width=True)
     
     # Pulsante per scaricare i dati filtrati della tabella
-    st.download_button("📥 Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
+    st.download_button("Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
     
     # Pulsante per scaricare il DB completo preso con l'API
     st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
@@ -191,8 +191,7 @@ if not df_raw.empty:
     df_graph_plot['Date'] = pd.to_datetime(df_graph_plot['Date'], format='%m-%Y')
     df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
 
-    st.subheader("Dati utilizzati per il grafico (df_graph_plot)")
-    st.dataframe(df_graph_plot)
+
     
     color_map = {
         "Coal": "#4d4d4d",
