@@ -188,6 +188,7 @@ if not df_raw.empty:
     st.write(df_graph_plot['Date'].dtype)
 
     # Pivot per creare un grafico a area
+    df_graph_plot['Date'] = pd.to_datetime(df_graph_plot['Date'], format='%m-%Y')
     df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
 
     st.subheader("Dati utilizzati per il grafico (df_graph_plot)")
