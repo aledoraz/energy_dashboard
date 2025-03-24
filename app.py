@@ -185,6 +185,7 @@ if not df_raw.empty:
     df_graph_plot = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
 
     df_graph_plot = df_graph_plot.sort_values(['Country', 'Date', 'Source'])
+    st.write(df_graph_plot['Date'].dtype)
 
     # Pivot per creare un grafico a area
     df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
