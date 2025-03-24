@@ -176,24 +176,24 @@ if not df_raw.empty:
     st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
     
     # --- INTERFACCIA UTENTE: GRAFICO ---
+
+    # --- INTERFACCIA UTENTE: GRAFICO ---
     st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
-    # Filtro per Country specifico per il grafico (indipendente dal filtro tabella)
+    
+    # Ordine fisso delle fonti (stacking)
+    ordered_sources = ["Coal", "Gas", "Other fossil", "Nuclear", "Solar", "Wind", "Hydro", "Bioenergy", "Other renewables"]
+    
+    # Filtro per Country specifico per il grafico
     graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
     
-    # Utilizziamo i dati mensili per il grafico e filtriamo per il paese scelto
-    df_graph = df_monthly[df_monthly["Country"] == graph_country]
-    # Escludiamo le fonti aggregate
-    df_graph_plot = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
-
-    df_graph_plot = df_graph_plot.sort_values(['Country', 'Date', 'Source'])
-    st.write(df_graph_plot['Date'].dtype)
-
-    # Pivot per creare un grafico a area
-    df_graph_plot['Date'] = pd.to_datetime(df_graph_plot['Date'], format='%m-%Y')
-    df_plot = df_graph_plot.pivot(index='Date', columns='Source', values='Share (%)')
-
-
+    # Dati mensili filtrati per il grafico
+    df_graph = df_monthly[df_monthly["Country"] == graph_country].copy()
+    df_graph = df_graph[~df_graph["Source"].isin(["Total", "Green", "Brown"])]
+    df_graph["Date"] = pd.to_datetime(df_graph["Date"], format="%m-%Y", errors="coerce")
+    df_graph = df_graph[df_graph["Source"].isin(ordered_sources)]
+    df_graph["Source"] = pd.Categorical(df_graph["Source"], categories=ordered_sources, ordered=True)
     
+    # Mappa colori coerente
     color_map = {
         "Coal": "#4d4d4d",
         "Other fossil": "#a6a6a6",
@@ -205,29 +205,37 @@ if not df_raw.empty:
         "Bioenergy": "#2ca02c",
         "Other renewables": "#17becf"
     }
-
-    import matplotlib.dates as mdates
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    if not df_plot.empty:
-        df_plot.plot(kind='area', stacked=True, alpha=0.7, ax=ax, color=[color_map[s] for s in df_plot.columns])
-        ax.legend(loc='upper left')
-        ax.set_title(f"Quota di Generazione - {graph_country}")
-        ax.set_ylabel('%')
-        ax.set_ylim(0, 100)
-        ax.set_xlabel('Anno')
     
-        # 📌 Sistemiamo la scala temporale dell'asse X
-        plt.xticks(rotation=45)  # Ruota le date per leggibilità
-        
-        plt.tight_layout()
-        st.pyplot(fig)
-
-
-        # Salva il grafico come immagine in memoria per il download
+    # Grafico interattivo Plotly
+    import plotly.express as px
+    
+    if not df_graph.empty:
+        fig = px.area(
+            df_graph,
+            x="Date",
+            y="Share (%)",
+            color="Source",
+            category_orders={"Source": ordered_sources},
+            color_discrete_map=color_map,
+            title=f"Quota di Generazione - {graph_country}",
+            labels={"Share (%)": "%", "Date": "Anno"}
+        )
+    
+        fig.update_layout(
+            yaxis=dict(range=[0, 100]),
+            hovermode="x unified",
+            legend_title="Fonte",
+            xaxis_title="Anno",
+            yaxis_title="Quota (%)",
+            margin=dict(t=50, b=50, l=40, r=10),
+        )
+    
+        st.plotly_chart(fig, use_container_width=True)
+    
+        # Salva il grafico come PNG per il download
         import io
         buf = io.BytesIO()
-        fig.savefig(buf, format="png")
+        fig.write_image(buf, format="png")
         buf.seek(0)
     
         st.download_button(
@@ -236,8 +244,10 @@ if not df_raw.empty:
             file_name=f"grafico_{graph_country}.png",
             mime="image/png"
         )
-
     else:
         st.warning("Nessun dato disponibile per il grafico!")
+
+
+    
 else:
     st.warning("Nessun dato disponibile!")
