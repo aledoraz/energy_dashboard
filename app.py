@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import time
 from datetime import datetime
 from io import BytesIO
+import plotly.express as px
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
