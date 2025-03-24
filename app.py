@@ -15,7 +15,10 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        f"?entity_code=USA,AUS,CAN,JPN,GBR,CHN,IND,RUS,ITA,FRA,DEU,ESP,PRT,NLD,AUT,ARE,QAT"
+        f"?entity_code= EUR, ARG, ARM, AUS, AUT, AZE, BGD, BLR, BEL, BOL, BIH, BRA, BGR, CAN, CHL, CHN, COL, CRI, HRV, CYP, CZE,
+        DNK, DOM, ECU, EGY, SLV, EST, FIN, FRA, GEO, DEU, GRC, HUN, IND, IRN, IRL, ITA, JPN, KAZ, KEN, KWT, KGZ, LVA,
+        LTU, LUX, MYS, MLT, MEX, MDA, MNG, MNE, MAR, NLD, NZL, NGA, MKD, NOR, OMN, PAK, PER, PHL, POL, PRT, PRI, QAT, ROU,
+        RUS, SRB, SGP, SVK, SVN, ZAF, KOR, ESP, LKA, SWE, CHE, TWN, TJK, THA, TUN, TUR, UKR, GBR, USA, URY, VNM"
         f"&start_date=2000-01&end_date=2025-01"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
