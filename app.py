@@ -262,14 +262,14 @@ if not df_graph.empty:
             labels={y_col: y_title, "Date": "Anno"}
     )
     
-    fig.update_layout(
+        fig.update_layout(
             yaxis=dict(range=y_range),
             hovermode="x unified",
             legend_title="Fonte",
             xaxis_title="Anno",
             yaxis_title=y_title,
             margin=dict(t=50, b=50, l=40, r=10),
-    )
+        )
     
 st.plotly_chart(fig, use_container_width=True)
     
