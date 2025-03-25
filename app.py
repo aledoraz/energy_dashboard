@@ -282,8 +282,7 @@ if not df_raw.empty:
         st.warning("Nessun dato disponibile per il grafico!")
 
     
-else:
-    st.warning("Nessun dato disponibile!")
+
 
 import itertools
 
@@ -340,3 +339,5 @@ if st.checkbox("Trova combinazione per riprodurre Europe Gas Share"):
                     st.markdown(f"- {country}")
         else:
             st.error("❌ Nessuna combinazione trovata con i parametri attuali.")
+else:
+    st.warning("Nessun dato disponibile!")
