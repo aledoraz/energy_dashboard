@@ -15,9 +15,9 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        f"?entity_name=Europe,World"
+        f"?entity_name=Italy"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
-        f"&is_aggregate_series=true&include_all_dates_value_range=true&api_key={api_key}"
+        f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
     
     for attempt in range(5):
