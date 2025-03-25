@@ -11,6 +11,8 @@ st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
 # --- PARAMETRI GLOBALI ---
 API_KEY = st.secrets["API_KEY"]
+DROPBOX_URL = "https://www.dropbox.com/scl/fi/gbscgu1re44jxr368a2te/monthly_full_release_long_format.csv?rlkey=6i9an8gse4kwht6p62s1xxk5j&st=aw4fzzda&raw=1"
+
 EU_ISO3 = [
     "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU",
     "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT",
@@ -25,7 +27,7 @@ COUNTRIES = ",".join(ALL_ISO3)
 GREEN_SOURCES = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
 BROWN_SOURCES = ["Coal", "Gas", "Other fossil"]
 
-# --- FUNZIONE: SCARICA DATI ---
+# --- FUNZIONE DOWNLOAD DATI EMBER ---
 def download_ember_data(frequency):
     base_url = "https://api.ember-energy.org/v1/electricity-generation"
     series = "Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
@@ -38,20 +40,48 @@ def download_ember_data(frequency):
         f"&api_key={API_KEY}"
     )
     for _ in range(5):
-        response = requests.get(url)
-        if response.status_code == 200:
-            json_data = response.json()
-            if "data" in json_data:
-                df = pd.DataFrame(json_data["data"])
-                df["frequency"] = frequency
-                return df
+        try:
+            response = requests.get(url, timeout=60)
+            if response.status_code == 200:
+                json_data = response.json()
+                if "data" in json_data:
+                    df = pd.DataFrame(json_data["data"])
+                    df["frequency"] = frequency
+                    return df
+        except Exception:
+            pass
         time.sleep(10)
     return pd.DataFrame()
 
-# --- SCARICAMENTO E UNIONE ---
+# --- IMPORT MENSILI CON BACKUP SE API FALLISCE ---
+start_time = time.time()
 df_monthly = download_ember_data("monthly")
+api_source = "API"
+
+if df_monthly.empty or (time.time() - start_time > 300):
+    df_monthly = pd.read_csv(DROPBOX_URL)
+    df_monthly["date"] = pd.to_datetime(df_monthly["date"])
+    df_monthly["frequency"] = "monthly"
+    api_source = "Backup (Dropbox)"
+
+# --- IMPORT ANNUALI O DERIVAZIONE DA MENSILI ---
 df_annual = download_ember_data("annual")
+if df_annual.empty:
+    df_annual = (
+        df_monthly.copy()
+        .groupby(["entity_code", "entity_name", "series", df_monthly["date"].dt.year.rename("date")], as_index=False)["generation_twh"]
+        .sum()
+    )
+    df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
+    df_annual["frequency"] = "annual"
+
+# --- INFO DATI CARICATI ---
+st.info(f"📡 Fonte dati mensili: **{api_source}**")
+
+# --- UNIONE DATI ---
 df_raw = pd.concat([df_monthly, df_annual], ignore_index=True)
+
+# (continua con il tuo codice esistente per processing, aggregates, table, grafico...)
 
 if df_raw.empty:
     st.error("Nessun dato disponibile.")
