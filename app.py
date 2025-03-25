@@ -78,8 +78,8 @@ df_annual = (
 df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
 df_annual["frequency"] = "annual"
 
-    df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
-    df_annual["frequency"] = "annual"
+df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
+df_annual["frequency"] = "annual"
 
 # --- INFO DATI CARICATI ---
 st.info(f"📡 Fonte dati mensili: **{api_source}**")
