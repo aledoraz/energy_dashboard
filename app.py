@@ -60,7 +60,10 @@ if df_raw.empty:
 # --- PREPARAZIONE BASE ---
 df_raw["date"] = pd.to_datetime(df_raw["date"])
 df_raw = df_raw[df_raw["date"] >= pd.to_datetime("2014-01")]
-df_raw["entity_name"] = df_raw["entity_name"].fillna(df_raw["entity_code"])
+if "entity_name" not in df_raw.columns:
+    df_raw["entity_name"] = df_raw["entity_code"]
+else:
+    df_raw["entity_name"] = df_raw["entity_name"].fillna(df_raw["entity_code"])
 
 # --- AGGREGATI EUR & WORLD ---
 def add_aggregates(df):
