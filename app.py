@@ -43,9 +43,9 @@ df_raw = get_data()
 
 # Lista ISO3 dei paesi europei
 europe_iso3 = [
-    "GBR", "ALB", "AUT", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN", "ISL", "IRL",
-    "ITA", "LVA", "LTU", "LUX", "MLT", "MDA", "MNE", "NLD", "MKD", "NOR", "POL", "PRT", "ROU", "SRB", "SVK", "SVN", "ESP",
-    "SWE", "CHE", "UKR", "GBR", "XKX"
+    "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC",
+    "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK",
+    "SVN", "ESP", "SWE"
 ]
 
 # Aggregazioni EUR e WORLD
