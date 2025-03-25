@@ -1,12 +1,12 @@
         
-    import streamlit as st
-    import pandas as pd
-    import requests
-    import matplotlib.pyplot as plt
-    import time
-    from datetime import datetime, timedelta
-    from io import BytesIO
-    import plotly.express as px
+import streamlit as st
+import pandas as pd
+import requests
+import matplotlib.pyplot as plt
+import time
+from datetime import datetime, timedelta
+from io import BytesIO
+import plotly.express as px
     
     # --- CONFIGURAZIONE ---
     st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
