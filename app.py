@@ -185,7 +185,7 @@ if not df_raw.empty:
     df_month["YoY Variation (%)"] = df_month["YoY Variation (%)"].round(2)
     df_month.drop(columns=["Generation (TWh)_last_year"], inplace=True)
     # Selezioniamo le colonne utili e formattiamo la data in "MM-YYYY"
-    df_monthly = df_month[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)"]].copy()
+    df_monthly = df_month[["Country", "Date", "Source","Generation (TWh)", "Share (%)", "YoY Variation (%)","% Last GC", "% BOY"]].copy()
     df_monthly["Date"] = df_monthly["Date"].dt.strftime('%m-%Y')
     
     # --- AGGREGAZIONE DEI DATI A LIVELLO ANNUALE ---
@@ -249,11 +249,14 @@ if not df_raw.empty:
         color = "green" if val > 0 else "red" if val < 0 else "black"
         return f"color: {color}"
     
-    styled_table = df_table.style.applymap(color_yoy, subset=["YoY Variation (%)"]).format({
-        "Generation (TWh)": "{:.2f}",
-        "Share (%)": "{:.2f}",
-        "YoY Variation (%)": "{:.2f}"
+    styled_table = df_table.style.applymap(color_yoy, subset=["YoY Variation (%)", "% Last GC", "% BOY"]).format({
+    "Generation (TWh)": "{:.2f}",
+    "Share (%)": "{:.2f}",
+    "YoY Variation (%)": "{:.2f}",
+    "% Last GC": "{:.2f}",
+    "% BOY": "{:.2f}"
     })
+
     
     st.dataframe(styled_table, use_container_width=True)
     
