@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -179,88 +178,14 @@ if not df_raw.empty:
     ].copy()
     df_show["Date"] = df_show["Date"].dt.strftime("%m-%Y")
 
-def color_yoy(val):
-    if pd.isna(val):
-        return ""
-    color = "green" if val > 0 else "red" if val < 0 else "black"
-    return f"color: {color}"
+    def color(val):
+        if pd.isna(val): return ""
+        return "color: green" if val > 0 else "color: red" if val < 0 else "color: black"
 
-columns_to_color = [col for col in ["YoY Variation (%)", "% BOY"] if col in df_table.columns]
-styled_table = df_table.style.applymap(color_yoy, subset=columns_to_color).format({
-    "Generation (TWh)": "{:.2f}",
-    "Share (%)": "{:.2f}",
-    "YoY Variation (%)": "{:.2f}",
-    "% BOY": "{:.2f}"
-})
+    styled = df_show[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)", "% BOY"]].style \
+        .applymap(color, subset=["YoY Variation (%)", "% BOY"]) \
+        .format({col: "{:.2f}" for col in ["Generation (TWh)", "Share (%)", "YoY Variation (%)", "% BOY"]})
 
-st.dataframe(styled_table, use_container_width=True)
-
-st.download_button("Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
-st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
-
-# --- GRAFICO ---
-st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
-
-ordered_sources = ["Coal", "Gas", "Other fossil", "Nuclear", "Solar", "Wind", "Hydro", "Bioenergy", "Other renewables"]
-color_map = {
-    "Coal": "#4d4d4d", "Other fossil": "#a6a6a6", "Gas": "#b5651d", "Nuclear": "#ffdd44",
-    "Solar": "#87CEEB", "Wind": "#aec7e8", "Hydro": "#1f77b4", "Bioenergy": "#2ca02c", "Other renewables": "#17becf"
-}
-
-graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
-metric_choice = st.radio("Seleziona la metrica da visualizzare:", ["Share", "YoY"])
-selected_sources = st.multiselect("Seleziona le fonti da visualizzare nel grafico:", options=ordered_sources, default=ordered_sources)
-
-df_graph = df_monthly[df_monthly["Country"] == graph_country].copy()
-df_graph["Date"] = pd.to_datetime(df_graph["Date"], format="%m-%Y", errors="coerce")
-df_graph = df_graph[df_graph["Source"].isin(selected_sources)]
-df_graph["Source"] = pd.Categorical(df_graph["Source"], categories=ordered_sources, ordered=True)
-
-if metric_choice == "Share":
-    y_col = "Share (%)"
-    y_title = "Quota (%)"
-    y_range = [0, 100]
-else:
-    y_col = "YoY Variation (%)"
-    y_title = "Variazione YoY (%)"
-    y_min, y_max = df_graph[y_col].min(), df_graph[y_col].max()
-    y_margin = max(abs(y_min), abs(y_max)) * 0.1
-    y_range = [y_min - y_margin, y_max + y_margin]
-
-if not df_graph.empty:
-    fig = px.area(
-        df_graph,
-        x="Date",
-        y=y_col,
-        color="Source",
-        category_orders={"Source": ordered_sources},
-        color_discrete_map=color_map,
-        title=f"{y_title} - {graph_country}",
-        labels={y_col: y_title, "Date": "Anno"}
-    )
-
-    fig.update_layout(
-        yaxis=dict(range=y_range),
-        hovermode="x unified",
-        legend_title="Fonte",
-        xaxis_title="Anno",
-        yaxis_title=y_title,
-        margin=dict(t=50, b=50, l=40, r=10),
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    buf = BytesIO()
-    try:
-        fig.write_image(buf, format="png")
-        buf.seek(0)
-        st.download_button(
-            label="Scarica Grafico",
-            data=buf,
-            file_name=f"grafico_{graph_country}.png",
-            mime="image/png"
-        )
-    except Exception:
-        st.warning("⚠️ Kaleido non installato, impossibile scaricare il grafico come PNG.")
-else:
-    st.warning("Nessun dato disponibile per il grafico!")
+    st.dataframe(styled, use_container_width=True)
+    st.download_button("Scarica Dati Tabella", df_show.to_csv(index=False), "dati_tabella.csv", "text/csv")
+    st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
