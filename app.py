@@ -2,309 +2,285 @@ import streamlit as st
 import pandas as pd
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import plotly.express as px
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
-# --- PARAMETRI GLOBALI ---
-API_KEY = st.secrets["API_KEY"]
-DROPBOX_URL = "https://www.dropbox.com/scl/fi/gbscgu1re44jxr368a2te/monthly_full_release_long_format.csv?rlkey=6i9an8gse4kwht6p62s1xxk5j&st=aw4fzzda&raw=1"
 
-EU_ISO3 = [
-    "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU",
-    "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT",
-    "ROU", "SVK", "SVN", "ESP", "SWE"
-]
-G20_ISO3 = [
-    "ARG", "AUS", "BRA", "CAN", "CHN", "FRA", "DEU", "IND", "IDN", "ITA", "JPN",
-    "KOR", "MEX", "RUS", "SAU", "ZAF", "TUR", "GBR", "USA", "EU"
-]
-ALL_ISO3 = sorted(set(EU_ISO3 + G20_ISO3) - {"EU"})
-COUNTRIES = ",".join(ALL_ISO3)
-GREEN_SOURCES = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
-BROWN_SOURCES = ["Coal", "Gas", "Other fossil"]
 
-# --- FUNZIONE DOWNLOAD DATI EMBER ---
-def download_ember_data(frequency):
-    base_url = "https://api.ember-energy.org/v1/electricity-generation"
-    series = "Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
-    url = (
-        f"{base_url}/{frequency}?"
-        f"entity_code={COUNTRIES}"
+# --- FUNZIONE PRINCIPALE DI DOWNLOAD DATI ---
+def get_data():
+    api_key = st.secrets["API_KEY"]
+    
+
+    base_url = "https://api.ember-energy.org"
+    query_url = (
+        f"{base_url}/v1/electricity-generation/monthly"
+        f"?entity_code=ARG,ARM,AUS,AUT,AZE,BGD,BLR,BEL,BOL,BIH,BRA,BGR,CAN,CHL,CHN,COL,CRI,HRV,CYP,CZE,DNK,DOM,"
+        f"ECU,EGY,SLV,EST,FIN,FRA,GEO,DEU,GRC,HUN,IND,IRN,IRL,ITA,JPN,KAZ,KEN,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,"
+        f"MEX,MDA,MNG,MNE,MAR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRT,PRI,QAT,ROU,RUS,SRB,SGP,SVK,SVN,"
+        f"ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"
         f"&start_date=2000-01&end_date=2025-12"
-        f"&series={series}"
-        f"&is_aggregate_series=false&include_all_dates_value_range=true"
-        f"&api_key={API_KEY}"
+        f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
+        f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
+
     for _ in range(5):
-        try:
-            response = requests.get(url, timeout=60)
-            if response.status_code == 200:
-                json_data = response.json()
-                if "data" in json_data:
-                    df = pd.DataFrame(json_data["data"])
-                    df["frequency"] = frequency
-                    return df
-        except Exception:
-            pass
-        time.sleep(10)
+        response = requests.get(query_url)
+        if response.status_code == 200:
+            data = response.json()
+            if "data" in data and isinstance(data["data"], list) and data["data"]:
+                return pd.DataFrame(data["data"])
+            else:
+                st.warning("Dati API ricevuti ma vuoti o in formato inatteso.")
+                return pd.DataFrame()
+        elif response.status_code == 500:
+            time.sleep(20)
     return pd.DataFrame()
 
-# --- IMPORT MENSILI CON BACKUP SE API FALLISCE ---
-start_time = time.time()
-df_monthly = download_ember_data("monthly")
-api_source = "API"
+# --- SCARICAMENTO DATI ---
+df_raw = get_data()
 
-if df_monthly.empty or (time.time() - start_time > 300):
-    df_monthly = pd.read_csv(DROPBOX_URL)
-    df_monthly["date"] = pd.to_datetime(df_monthly["date"])
-    df_monthly["frequency"] = "monthly"
-    api_source = "Backup (Dropbox)"
+# Lista ISO3 dei paesi europei
+europe_iso3 = [
+    "ALB", "AUT", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN", "ISL", "IRL",
+    "ITA", "LVA", "LTU", "LUX", "MLT", "MDA", "MNE", "NLD", "MKD", "NOR", "POL", "PRT", "ROU", "SRB", "SVK", "SVN", "ESP",
+    "SWE", "CHE", "UKR", "GBR", "XKX"
+]
 
-# --- IMPORT ANNUALI O DERIVAZIONE DA MENSILI ---
-df_annual = download_ember_data("annual")
-df_monthly["date"] = pd.to_datetime(df_monthly["date"])  # Assicurati che sia datetime
-df_monthly["year"] = df_monthly["date"].dt.year
+# Aggregazioni EUR e WORLD
+if not df_raw.empty:
+    df_raw["date"] = pd.to_datetime(df_raw["date"])
+    df_eur = df_raw[df_raw["entity_code"].isin(europe_iso3)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    df_eur["entity_code"] = "EUR"
 
-df_annual = (
-    df_monthly.copy()
-    .groupby(["entity_code", "entity_name", "series", "year"], as_index=False)["generation_twh"]
-    .sum()
-    .rename(columns={"year": "date"})
-)
-df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
-df_annual["frequency"] = "annual"
+    df_world = df_raw.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    df_world["entity_code"] = "WORLD"
 
-df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
-df_annual["frequency"] = "annual"
+    df_raw = pd.concat([df_raw, df_eur, df_world], ignore_index=True)
 
-# --- INFO DATI CARICATI ---
-st.info(f"📡 Fonte dati mensili: **{api_source}**")
+    # Ricalcolo quota
+    total_gen = df_raw.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index().rename(
+        columns={"generation_twh": "total"})
+    df_raw = df_raw.merge(total_gen, on=["entity_code", "date"], how="left")
+    df_raw["share_of_generation_pct"] = (df_raw["generation_twh"] / df_raw["total"]) * 100
+    df_raw["share_of_generation_pct"] = df_raw["share_of_generation_pct"].round(2)
+    df_raw.drop(columns="total", inplace=True)
 
-# --- UNIONE DATI ---
-df_raw = pd.concat([df_monthly, df_annual], ignore_index=True)
-
-# (continua con il tuo codice esistente per processing, aggregates, table, grafico...)
-
-if df_raw.empty:
-    st.error("Nessun dato disponibile.")
-    st.stop()
-
-# --- PREPARAZIONE BASE ---
-df_raw["date"] = pd.to_datetime(df_raw["date"])
-df_raw = df_raw[df_raw["date"] >= pd.to_datetime("2014-01")]
-if "entity_name" not in df_raw.columns:
-    df_raw["entity_name"] = df_raw["entity_code"]
-else:
-    df_raw["entity_name"] = df_raw["entity_name"].fillna(df_raw["entity_code"])
-
-# --- AGGREGATI EUR & WORLD ---
-def add_aggregates(df):
-    for freq in df["frequency"].unique():
-        subset = df[df["frequency"] == freq]
-        eur = subset[subset["entity_code"].isin(EU_ISO3)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
-        eur["entity_code"] = "EUR"
-        eur["entity_name"] = "Europe"
-        eur["frequency"] = freq
-
-        world = subset.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
-        world["entity_code"] = "WORLD"
-        world["entity_name"] = "World"
-        world["frequency"] = freq
-
-        df = pd.concat([df, eur, world], ignore_index=True)
-    return df
-
-df_raw = add_aggregates(df_raw)
-
-# --- CALCOLO SHARE ---
-total_gen = df_raw.groupby(["entity_code", "date", "frequency"])["generation_twh"].sum().reset_index()
-total_gen.rename(columns={"generation_twh": "total"}, inplace=True)
-df_raw = df_raw.merge(total_gen, on=["entity_code", "date", "frequency"], how="left")
-df_raw["share_of_generation_pct"] = (df_raw["generation_twh"] / df_raw["total"] * 100).round(2)
-df_raw.drop(columns="total", inplace=True)
-
-# --- COLONNA BOY ---
-df_raw["month_key"] = df_raw["date"].dt.strftime("%m-%Y")
-df_raw["boy_key"] = "01-" + df_raw["date"].dt.year.astype(str)
-ref = df_raw[["entity_code", "series", "boy_key", "generation_twh", "frequency"]].rename(
-    columns={"generation_twh": "boy_value", "boy_key": "month_key"}
-)
-df_raw = df_raw.merge(ref, on=["entity_code", "series", "month_key", "frequency"], how="left")
-df_raw["% BOY"] = df_raw.apply(
-    lambda r: 0 if r["boy_value"] == 0 else round((r["generation_twh"] - r["boy_value"]) / r["boy_value"] * 100, 2),
+    # Aggiunta colonna BOY = valore di gennaio per ogni anno
+    df_raw["month_year"] = df_raw["date"].dt.strftime("%m-%Y")
+    df_raw["boy_key"] = "01-" + df_raw["date"].dt.year.astype(str)
+    ref = df_raw[["entity_code", "series", "month_year", "generation_twh"]].copy()
+    ref = ref.rename(columns={"month_year": "boy_key", "generation_twh": "boy_value"})
+    df_raw = df_raw.merge(ref, on=["entity_code", "series", "boy_key"], how="left")
+    df_raw["% BOY"] = ((df_raw["generation_twh"] - df_raw["boy_value"]) / df_raw["boy_value"]) * 100
+    df_raw["% BOY"] = df_raw.apply(
+    lambda row: 0.0 if row["boy_value"] == 0 else ((row["generation_twh"] - row["boy_value"]) / row["boy_value"]) * 100,
     axis=1
-)
-df_raw.drop(columns=["boy_value", "month_key"], inplace=True)
-
-# --- RINOMINA ---
-df = df_raw.rename(columns={
-    "entity_code": "Country",
-    "entity_name": "Country Name",
-    "date": "Date",
-    "series": "Source",
-    "generation_twh": "Generation (TWh)",
-    "share_of_generation_pct": "Share (%)"
-})
-
-# --- AGGREGATI Total, Green, Brown ---
-def aggregate_series(df, label, sources):
-    group = df[df["Source"].isin(sources)].groupby(["Country", "Country Name", "Date", "frequency"], as_index=False)[
-        "Generation (TWh)"].sum()
-    group["Source"] = label
-
-    total = df[df["Source"] != label].groupby(["Country", "Date", "frequency"])["Generation (TWh)"].sum().reset_index()
-    total.rename(columns={"Generation (TWh)": "total"}, inplace=True)
-    group = group.merge(total, on=["Country", "Date", "frequency"], how="left")
-    group["Share (%)"] = (group["Generation (TWh)"] / group["total"] * 100).round(2)
-
-    group["boy_key"] = "01-" + group["Date"].dt.year.astype(str)
-    group["month_key"] = group["Date"].dt.strftime("%m-%Y")
-    ref = group[["Country", "Source", "boy_key", "Generation (TWh)", "frequency"]].rename(
-        columns={"Generation (TWh)": "boy_value", "boy_key": "month_key"}
     )
-    group = group.merge(ref, on=["Country", "Source", "month_key", "frequency"], how="left")
-    group["% BOY"] = group.apply(
-        lambda r: 0 if r["boy_value"] == 0 else round((r["Generation (TWh)"] - r["boy_value"]) / r["boy_value"] * 100, 2),
-        axis=1
+    df_raw["% BOY"] = df_raw["% BOY"].round(2)
+
+    df_raw.drop(columns=["boy_value", "boy_key"], inplace=True)
+
+    # Ridenominazione
+    df = df_raw.rename(columns={
+        "entity_code": "Country",
+        "date": "Date",
+        "series": "Source",
+        "generation_twh": "Generation (TWh)",
+        "share_of_generation_pct": "Share (%)"
+    })
+
+    # Aggiunta Green, Brown, Total
+    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
+    brown_sources = ["Coal", "Gas", "Other fossil"]
+
+    def aggregate_and_append(label, source_list):
+        agg = df[df["Source"].isin(source_list)].groupby(["Country", "Date"], as_index=False)[
+            ["Generation (TWh)"]].sum()
+        agg["Source"] = label
+        total = df[df["Source"] == "Total"][["Country", "Date", "Generation (TWh)"]].rename(columns={"Generation (TWh)": "total"})
+        agg = agg.merge(total, on=["Country", "Date"], how="left")
+        agg["Share (%)"] = (agg["Generation (TWh)"] / agg["total"] * 100).round(2)
+        agg.drop(columns="total", inplace=True)
+
+        # Colonna % BOY anche per aggregati
+        agg["month_year"] = agg["Date"].dt.strftime("%m-%Y")
+        agg["boy_key"] = "01-" + agg["Date"].dt.year.astype(str)
+        ref = agg[["Country", "Source", "month_year", "Generation (TWh)"]].rename(columns={
+            "month_year": "boy_key", "Generation (TWh)": "boy_value"})
+        agg = agg.merge(ref, on=["Country", "Source", "boy_key"], how="left")
+        agg["% BOY"] = ((agg["Generation (TWh)"] - agg["boy_value"]) / agg["boy_value"]).round(2) * 100
+        agg.drop(columns=["boy_value", "boy_key"], inplace=True)
+        return agg
+
+    df_total = df.groupby(["Country", "Date"], as_index=False)[["Generation (TWh)"]].sum()
+    df_total["Source"] = "Total"
+    df_total["Share (%)"] = 100.0
+
+    # Colonna % BOY per Total
+    df_total["month_year"] = df_total["Date"].dt.strftime("%m-%Y")
+    df_total["boy_key"] = "01-" + df_total["Date"].dt.year.astype(str)
+    ref_total = df_total[["Country", "month_year", "Generation (TWh)"]].rename(columns={"month_year": "boy_key", "Generation (TWh)": "boy_value"})
+    df_total = df_total.merge(ref_total, on=["Country", "boy_key"], how="left")
+    df_total["% BOY"] = ((df_total["Generation (TWh)"] - df_total["boy_value"]) / df_total["boy_value"] * 100).round(2)
+    df_total.drop(columns=["boy_value", "boy_key"], inplace=True)
+
+    df_green = aggregate_and_append("Green", green_sources)
+    df_brown = aggregate_and_append("Brown", brown_sources)
+
+    df_all = pd.concat([df, df_total, df_green, df_brown], ignore_index=True)
+    df_all = df_all[df_all["Date"] >= pd.to_datetime("2014-01")]
+    df_all = df_all.sort_values(["Country", "Source", "Date"])
+    df_all["Date_str"] = df_all["Date"].dt.strftime("%m-%Y")
+
+    # --- VARIAZIONE YOY ---
+    df_yoy = df_all.copy()
+    df_last_year = df_yoy.copy()
+    df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
+    df_yoy = df_yoy.merge(
+        df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
+        on=["Country", "Source", "Date"],
+        suffixes=("", "_last_year"),
+        how="left"
     )
-    group.drop(columns=["boy_value", "month_key"], inplace=True)
-    return group
+    df_yoy["YoY Variation (%)"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_last_year"]) / df_yoy["Generation (TWh)_last_year"]) * 100
+    df_yoy["YoY Variation (%)"] = df_yoy.apply(
+    lambda row: 0.0 if row["Generation (TWh)_last_year"] == 0 else ((row["Generation (TWh)"] - row["Generation (TWh)_last_year"]) / row["Generation (TWh)_last_year"]) * 100,
+    axis=1)
+    df_yoy["YoY Variation (%)"] = df_yoy["YoY Variation (%)"].round(2)
 
-df_total = df.groupby(["Country", "Country Name", "Date", "frequency"], as_index=False)[["Generation (TWh)"]].sum()
-df_total["Source"] = "Total"
-df_total["Share (%)"] = 100.0
-df_total = aggregate_series(df_total, "Total", [])
+    df_yoy.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+    df_monthly = df_yoy.copy()
 
-df_green = aggregate_series(df, "Green", GREEN_SOURCES)
-df_brown = aggregate_series(df, "Brown", BROWN_SOURCES)
+    # --- TABELLA ---
+    st.subheader("Tabella Produzione Elettrica")
+    view = st.radio("Visualizzazione dati:", ("Mensile",), index=0)
+    country = st.selectbox("Seleziona un paese:", sorted(df_monthly["Country"].unique()))
+    sources = st.multiselect("Seleziona una fonte:", sorted(df_monthly["Source"].unique()), default=sorted(df_monthly["Source"].unique()))
+    years = st.multiselect("Anni:", sorted(df_monthly["Date"].dt.year.unique().astype(str)), default=sorted(df_monthly["Date"].dt.year.unique().astype(str)))
 
-df_all = pd.concat([df, df_total, df_green, df_brown], ignore_index=True)
-df_all = df_all.sort_values(["Country", "Source", "Date"])
-df_all["Date_str"] = df_all["Date"].dt.strftime("%m-%Y")
+    df_show = df_monthly[
+        (df_monthly["Country"] == country) &
+        (df_monthly["Source"].isin(sources)) &
+        (df_monthly["Date"].dt.year.astype(str).isin(years))
+    ].copy()
+    df_show["Date"] = df_show["Date"].dt.strftime("%m-%Y")
 
-# --- CALCOLO YOY ---
-df_yoy = df_all.copy()
-df_last = df_yoy.copy()
-df_last["Date"] = df_last["Date"] + pd.DateOffset(years=1)
-df_yoy = df_yoy.merge(
-    df_last[["Country", "Source", "Date", "Generation (TWh)", "frequency"]],
-    on=["Country", "Source", "Date", "frequency"],
-    suffixes=("", "_last"),
-    how="left"
-)
-df_yoy["YoY Variation (%)"] = df_yoy.apply(
-    lambda r: 0 if r["Generation (TWh)_last"] == 0 else round((r["Generation (TWh)"] - r["Generation (TWh)_last"]) / r["Generation (TWh)_last"] * 100, 2),
-    axis=1
-)
-df_yoy.drop(columns=["Generation (TWh)_last"], inplace=True)
+    def color(val):
+        if pd.isna(val): return ""
+        return "color: green" if val > 0 else "color: red" if val < 0 else "color: black"
 
-# --- TABELLA ---
-st.subheader("Tabella Produzione Elettrica")
-selected_freq = st.radio("Frequenza:", ["monthly", "annual"])
-filtered = df_yoy[df_yoy["frequency"] == selected_freq]
+    styled = df_show[["Country", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)", "% BOY"]].style \
+        .applymap(color, subset=["YoY Variation (%)", "% BOY"]) \
+        .format({col: "{:.2f}" for col in ["Generation (TWh)", "Share (%)", "YoY Variation (%)", "% BOY"]})
 
-country = st.selectbox("Seleziona un paese:", sorted(filtered["Country Name"].unique()))
-sources = st.multiselect("Seleziona una fonte:", sorted(filtered["Source"].unique()), default=sorted(filtered["Source"].unique()))
-years = st.multiselect("Anni:", sorted(filtered["Date"].dt.year.unique().astype(str)), default=sorted(filtered["Date"].dt.year.unique().astype(str)))
+    st.dataframe(styled, use_container_width=True)
+    st.download_button("Scarica Dati Tabella", df_show.to_csv(index=False), "dati_tabella.csv", "text/csv")
+    st.download_button("Scarica DB Completo", df_raw.to_csv(index=False), "db_completo.csv", "text/csv")
 
-df_table = filtered[
-    (filtered["Country Name"] == country) &
-    (filtered["Source"].isin(sources)) &
-    (filtered["Date"].dt.year.astype(str).isin(years))
-].copy()
-df_table["Date"] = df_table["Date"].dt.strftime("%m-%Y") if selected_freq == "monthly" else df_table["Date"].dt.year.astype(str)
-
-def color(val):
-    if pd.isna(val): return ""
-    return "color: green" if val > 0 else "color: red" if val < 0 else "color: black"
-
-styled = df_table[["Country Name", "Date", "Source", "Generation (TWh)", "Share (%)", "YoY Variation (%)", "% BOY"]].style \
-    .applymap(color, subset=["YoY Variation (%)", "% BOY"]) \
-    .format("{:.2f}", subset=["Generation (TWh)", "Share (%)", "YoY Variation (%)", "% BOY"])
-
-st.dataframe(styled, use_container_width=True)
-st.download_button("Scarica Dati Tabella", df_table.to_csv(index=False), "dati_tabella.csv", "text/csv")
-st.download_button("Scarica DB Completo", df_yoy.to_csv(index=False), "db_completo.csv", "text/csv")
-
-# --- GRAFICO ---
-st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
-
-ordered_sources = ["Coal", "Gas", "Other fossil", "Nuclear", "Solar", "Wind", "Hydro", "Bioenergy", "Other renewables"]
-color_map = {
-    "Coal": "#4d4d4d",
-    "Other fossil": "#a6a6a6",
-    "Gas": "#b5651d",
-    "Nuclear": "#ffdd44",
-    "Solar": "#87CEEB",
-    "Wind": "#aec7e8",
-    "Hydro": "#1f77b4",
-    "Bioenergy": "#2ca02c",
-    "Other renewables": "#17becf"
-}
-
-graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
-metric_choice = st.radio("Seleziona la metrica da visualizzare:", ["Share", "YoY"])
-selected_sources = st.multiselect("Seleziona le fonti da visualizzare nel grafico:", options=ordered_sources, default=ordered_sources)
-
-df_graph = df_yoy[(df_yoy["Country"] == graph_country) & (df_yoy["frequency"] == "monthly")].copy()
-df_graph = df_graph[df_graph["Source"].isin(selected_sources)]
-df_graph["Source"] = pd.Categorical(df_graph["Source"], categories=ordered_sources, ordered=True)
-
-if metric_choice == "Share":
-    y_col = "Share (%)"
-    y_title = "Quota (%)"
-    y_range = [0, 100]
-else:
-    y_col = "YoY Variation (%)"
-    y_title = "Variazione YoY (%)"
-    y_min = df_graph[y_col].min()
-    y_max = df_graph[y_col].max()
-    y_margin = max(abs(y_min), abs(y_max)) * 0.1
-    y_range = [y_min - y_margin, y_max + y_margin]
-
-if not df_graph.empty:
-    fig = px.area(
-        df_graph,
-        x="Date",
-        y=y_col,
-        color="Source",
-        category_orders={"Source": ordered_sources},
-        color_discrete_map=color_map,
-        title=f"{y_title} - {graph_country}",
-        labels={y_col: y_title, "Date": "Anno"}
+  # --- INTERFACCIA UTENTE: GRAFICO ---
+    st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
+    
+    # Ordine fisso delle fonti (stacking)
+    ordered_sources = ["Coal", "Gas", "Other fossil", "Nuclear", "Solar", "Wind", "Hydro", "Bioenergy", "Other renewables"]
+    
+    # Colori coerenti
+    color_map = {
+        "Coal": "#4d4d4d",
+        "Other fossil": "#a6a6a6",
+        "Gas": "#b5651d",
+        "Nuclear": "#ffdd44",
+        "Solar": "#87CEEB",
+        "Wind": "#aec7e8",
+        "Hydro": "#1f77b4",
+        "Bioenergy": "#2ca02c",
+        "Other renewables": "#17becf"
+    }
+    
+    # Selezione paese
+    graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
+    
+    # Selezione metrica: Share o YoY
+    metric_choice = st.radio("Seleziona la metrica da visualizzare:", ["Share", "YoY"])
+    
+    # Filtro per fonte da includere nel grafico
+    selected_sources = st.multiselect(
+        "Seleziona le fonti da visualizzare nel grafico:",
+        options=ordered_sources,
+        default=ordered_sources
     )
-    fig.update_layout(
-        yaxis=dict(range=y_range),
-        hovermode="x unified",
-        legend_title="Fonte",
-        xaxis_title="Anno",
-        yaxis_title=y_title,
-        margin=dict(t=50, b=50, l=40, r=10),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    buf = BytesIO()
-    try:
-        fig.write_image(buf, format="png")
-        buf.seek(0)
-        st.download_button(
-            label="Scarica Grafico",
-            data=buf,
-            file_name=f"grafico_{graph_country}.png",
-            mime="image/png"
+    
+    # Prepara dati
+    df_graph = df_monthly[df_monthly["Country"] == graph_country].copy()
+    df_graph["Date"] = pd.to_datetime(df_graph["Date"], format="%m-%Y", errors="coerce")
+    
+    # Applichiamo i filtri
+    df_graph = df_graph[df_graph["Source"].isin(selected_sources)]
+    
+    # Imposta Source come categorico con ordine fisso (anche con subset)
+    df_graph["Source"] = pd.Categorical(df_graph["Source"], categories=ordered_sources, ordered=True)
+    
+    # Selezione metrica
+    if metric_choice == "Share":
+        y_col = "Share (%)"
+        y_title = "Quota (%)"
+        y_range = [0, 100]
+    else:
+        y_col = "YoY Variation (%)"
+        y_title = "Variazione YoY (%)"
+        # y_range dinamico con margine
+        y_min = df_graph[y_col].min()
+        y_max = df_graph[y_col].max()
+        y_margin = max(abs(y_min), abs(y_max)) * 0.1
+        y_range = [y_min - y_margin, y_max + y_margin]
+    
+    # Plot interattivo
+    import plotly.express as px
+    
+    if not df_graph.empty:
+        fig = px.area(
+            df_graph,
+            x="Date",
+            y=y_col,
+            color="Source",
+            category_orders={"Source": ordered_sources},
+            color_discrete_map=color_map,
+            title=f"{y_title} - {graph_country}",
+            labels={y_col: y_title, "Date": "Anno"}
         )
-    except Exception:
-        st.warning("⚠️ Kaleido non installato, impossibile scaricare il grafico come PNG.")
+    
+        fig.update_layout(
+            yaxis=dict(range=y_range),
+            hovermode="x unified",
+            legend_title="Fonte",
+            xaxis_title="Anno",
+            yaxis_title=y_title,
+            margin=dict(t=50, b=50, l=40, r=10),
+        )
+    
+        st.plotly_chart(fig, use_container_width=True)
+    
+        # Download PNG (solo se Kaleido è installato)
+        import io
+        buf = io.BytesIO()
+        try:
+            fig.write_image(buf, format="png")
+            buf.seek(0)
+            st.download_button(
+                label="Scarica Grafico",
+                data=buf,
+                file_name=f"grafico_{graph_country}.png",
+                mime="image/png"
+            )
+        except Exception as e:
+            st.warning("⚠️ Kaleido non installato, impossibile scaricare il grafico come PNG.")
+    else:
+        st.warning("Nessun dato disponibile per il grafico!")
+
+    
 else:
-    st.warning("Nessun dato disponibile per il grafico!")
-
-
-
-
-
-
-
+    st.warning("Nessun dato disponibile!")
