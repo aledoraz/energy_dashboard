@@ -195,10 +195,10 @@ st.download_button("Scarica DB Completo", df_yoy.to_csv(index=False), "db_comple
 st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
     
     # Ordine fisso delle fonti (stacking)
-    ordered_sources = ["Coal", "Gas", "Other fossil", "Nuclear", "Solar", "Wind", "Hydro", "Bioenergy", "Other renewables"]
+ordered_sources = ["Coal", "Gas", "Other fossil", "Nuclear", "Solar", "Wind", "Hydro", "Bioenergy", "Other renewables"]
     
     # Colori coerenti
-    color_map = {
+color_map = {
         "Coal": "#4d4d4d",
         "Other fossil": "#a6a6a6",
         "Gas": "#b5651d",
@@ -208,30 +208,30 @@ st.subheader("Grafico Quota di Generazione Elettrica per Fonte")
         "Hydro": "#1f77b4",
         "Bioenergy": "#2ca02c",
         "Other renewables": "#17becf"
-    }
+}
     
     # Selezione paese
-    graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
+graph_country = st.selectbox("Seleziona un paese per il grafico:", sorted(df["Country"].unique()), key="graph_country")
     
     # Selezione metrica: Share o YoY
-    metric_choice = st.radio("Seleziona la metrica da visualizzare:", ["Share", "YoY"])
+metric_choice = st.radio("Seleziona la metrica da visualizzare:", ["Share", "YoY"])
     
     # Filtro per fonte da includere nel grafico
-    selected_sources = st.multiselect(
+selected_sources = st.multiselect(
         "Seleziona le fonti da visualizzare nel grafico:",
         options=ordered_sources,
         default=ordered_sources
-    )
+)
     
     # Prepara dati
-    df_graph = df_monthly[df_monthly["Country"] == graph_country].copy()
-    df_graph["Date"] = pd.to_datetime(df_graph["Date"], format="%m-%Y", errors="coerce")
+df_graph = df_monthly[df_monthly["Country"] == graph_country].copy()
+df_graph["Date"] = pd.to_datetime(df_graph["Date"], format="%m-%Y", errors="coerce")
     
     # Applichiamo i filtri
-    df_graph = df_graph[df_graph["Source"].isin(selected_sources)]
+df_graph = df_graph[df_graph["Source"].isin(selected_sources)]
     
     # Imposta Source come categorico con ordine fisso (anche con subset)
-    df_graph["Source"] = pd.Categorical(df_graph["Source"], categories=ordered_sources, ordered=True)
+df_graph["Source"] = pd.Categorical(df_graph["Source"], categories=ordered_sources, ordered=True)
     
     # Selezione metrica
 if metric_choice == "Share":
@@ -248,9 +248,9 @@ else:
         y_range = [y_min - y_margin, y_max + y_margin]
     
     # Plot interattivo
-    import plotly.express as px
+import plotly.express as px
     
-    if not df_graph.empty:
+if not df_graph.empty:
         fig = px.area(
             df_graph,
             x="Date",
@@ -260,23 +260,23 @@ else:
             color_discrete_map=color_map,
             title=f"{y_title} - {graph_country}",
             labels={y_col: y_title, "Date": "Anno"}
-        )
+    )
     
-        fig.update_layout(
+    fig.update_layout(
             yaxis=dict(range=y_range),
             hovermode="x unified",
             legend_title="Fonte",
             xaxis_title="Anno",
             yaxis_title=y_title,
             margin=dict(t=50, b=50, l=40, r=10),
-        )
+    )
     
-        st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
     
         # Download PNG (solo se Kaleido è installato)
-    import io
+import io
         buf = io.BytesIO()
-    try:
+try:
             fig.write_image(buf, format="png")
             buf.seek(0)
             st.download_button(
@@ -284,8 +284,8 @@ else:
                 data=buf,
                 file_name=f"grafico_{graph_country}.png",
                 mime="image/png"
-            )
-    except Exception as e:
+        )
+except Exception as e:
             st.warning("⚠️ Kaleido non installato, impossibile scaricare il grafico come PNG.")
 else:
         st.warning("Nessun dato disponibile per il grafico!")
