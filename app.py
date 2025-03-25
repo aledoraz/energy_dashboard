@@ -3,20 +3,43 @@ import pandas as pd
 import requests
 import matplotlib.pyplot as plt
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import plotly.express as px
 
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
-def get_data():
+# --- FUNZIONE: Ricava l'ultima data disponibile dai dati Ember ---
+def get_last_available_date():
     api_key = st.secrets["API_KEY"]
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
+        f"?entity_code=ITA&series=Coal"
+        f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
+    )
+    response = requests.get(query_url)
+    if response.status_code == 200:
+        data = response.json()
+        if "data" in data and data["data"]:
+            dates = [entry["date"] for entry in data["data"]]
+            return max(pd.to_datetime(dates))
+    # Se non disponibile, fallback al mese precedente
+    today = datetime.today().replace(day=1)
+    return today - timedelta(days=1)
+
+# --- FUNZIONE PRINCIPALE DI DOWNLOAD DATI ---
+def get_data():
+    api_key = st.secrets["API_KEY"]
+    end_date = get_last_available_date()
+    end_str = end_date.strftime("%Y-%m")
+
+    base_url = "https://api.ember-energy.org"
+    query_url = (
+        f"{base_url}/v1/electricity-generation/monthly"
         f"?entity_code=ARG,ARM,AUS,AUT,AZE,BGD,BLR,BEL,BOL,BIH,BRA,BGR,CAN,CHL,CHN,COL,CRI,HRV,CYP,CZE,DNK,DOM,ECU,EGY,SLV,EST,FIN,FRA,GEO,DEU,GRC,HUN,IND,IRN,IRL,ITA,JPN,KAZ,KEN,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,MEX,MDA,MNG,MNE,MAR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRT,PRI,QAT,ROU,RUS,SRB,SGP,SVK,SVN,ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"
-        f"&start_date=2000-01&end_date=2025-01"
+        f"&start_date=2000-01&end_date={end_str}"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
@@ -34,7 +57,6 @@ def get_data():
             time.sleep(20)
         else:
             return pd.DataFrame()
-
     return pd.DataFrame()
 
 # --- SCARICAMENTO DATI ---
@@ -73,10 +95,38 @@ if not df_raw.empty:
 
     df_raw = df_augmented.copy()
 
+    # --- AGGIUNTA: % VARIAZIONE VS GC PRECEDENTE E INIZIO ANNO ---
+    df_raw["date"] = pd.to_datetime(df_raw["date"])
+    df_raw["month_year"] = df_raw["date"].dt.strftime("%m-%Y")
 
-# Unione con i dati originali
-df_augmented = pd.concat([df_raw, world, eur], ignore_index=True)
+    # Governing Council ECB (Day 2) date in formato MM-YYYY
+    gc_months = ["01-2025", "04-2025", "06-2025", "07-2025", "09-2025", "10-2025", "12-2025"]
+    gc_months_dt = [datetime.strptime(m, "%m-%Y") for m in gc_months]
 
+    # Aggiunge colonna con ultima GC precedente
+    def last_gc_month(row_date):
+        prev = [gc for gc in gc_months_dt if gc < row_date]
+        return max(prev).strftime("%m-%Y") if prev else None
+
+    df_raw["Last GC"] = df_raw["date"].apply(last_gc_month)
+
+    gc_ref = df_raw[["entity_code", "series", "month_year", "generation_twh"]].rename(
+        columns={"month_year": "Last GC", "generation_twh": "GC Value"})
+
+    df_raw = df_raw.merge(gc_ref, on=["entity_code", "series", "Last GC"], how="left")
+    df_raw["% Last GC"] = ((df_raw["generation_twh"] - df_raw["GC Value"]) / df_raw["GC Value"]) * 100
+    df_raw["% Last GC"] = df_raw["% Last GC"].round(2)
+    df_raw = df_raw.drop(columns=["GC Value"])
+
+    # Calcolo variazione vs inizio anno (01-YYYY)
+    df_raw["Year"] = df_raw["date"].dt.year
+    df_raw["BOY"] = "01-" + df_raw["Year"].astype(str)
+    boy_ref = df_raw[["entity_code", "series", "month_year", "generation_twh"]].rename(
+        columns={"month_year": "BOY", "generation_twh": "BOY Value"})
+    df_raw = df_raw.merge(boy_ref, on=["entity_code", "series", "BOY"], how="left")
+    df_raw["% BOY"] = ((df_raw["generation_twh"] - df_raw["BOY Value"]) / df_raw["BOY Value"]) * 100
+    df_raw["% BOY"] = df_raw["% BOY"].round(2)
+    df_raw = df_raw.drop(columns=["BOY Value"])
 
 if not df_raw.empty:
     # --- PREPARAZIONE DATI INIZIALI (dati mensili grezzi) ---
