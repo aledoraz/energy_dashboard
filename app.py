@@ -19,7 +19,10 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        f"?entity_code=ARG,ARM,AZE,BGD,BLR,BEL,BOL,BIH,BRA,BGR,CAN,CHL,CHN,COL,CRI,HRV,CYP,CZE,DNK,DOM,ECU,EGY,SLV,EST,FIN,FRA,GRC,HUN,IRL,ITA,JPN,KAZ,KEN,XKX,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,MEX,MNG,MNE,MAR,MMR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRI,QAT,SRB,SGP,SVK,SVN,ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"
+        f"?entity_code=ARG,ARM,AUS,AUT,AZE,BGD,BLR,BEL,BOL,BIH,BRA,BGR,CAN,CHL,CHN,COL,CRI,HRV,CYP,CZE,DNK,DOM,"
+        f"ECU,EGY,SLV,EST,FIN,FRA,GEO,DEU,GRC,HUN,IND,IRN,IRL,ITA,JPN,KAZ,KEN,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,"
+        f"MEX,MDA,MNG,MNE,MAR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRT,PRI,QAT,ROU,RUS,SRB,SGP,SVK,SVN,"
+        f"ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"
         f"&start_date=2000-01&end_date=2025-12"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
@@ -43,22 +46,19 @@ df_raw = get_data()
 
 # Lista ISO3 dei paesi europei
 europe_iso3 = [
-    "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC",
-    "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK",
-    "SVN", "ESP", "SWE"
+    "ALB", "AUT", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN", "ISL", "IRL",
+    "ITA", "LVA", "LTU", "LUX", "MLT", "MDA", "MNE", "NLD", "MKD", "NOR", "POL", "PRT", "ROU", "SRB", "SVK", "SVN", "ESP",
+    "SWE", "CHE", "UKR", "GBR", "XKX"
 ]
 
 # Aggregazioni EUR e WORLD
 if not df_raw.empty:
     df_raw["date"] = pd.to_datetime(df_raw["date"])
-
     df_eur = df_raw[df_raw["entity_code"].isin(europe_iso3)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
     df_eur["entity_code"] = "EUR"
 
     df_world = df_raw.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
     df_world["entity_code"] = "WORLD"
-
-
 
     df_raw = pd.concat([df_raw, df_eur, df_world], ignore_index=True)
 
@@ -282,62 +282,5 @@ if not df_raw.empty:
         st.warning("Nessun dato disponibile per il grafico!")
 
     
-
-
-import itertools
-
-def find_best_country_combination(df_monthly, month_year_str, target_share, max_countries=30):
-    # Prepara la data e filtra
-    target_date = pd.to_datetime(month_year_str, format="%m-%Y")
-    df_filtered = df_monthly[df_monthly["Date"] == month_year_str]
-    
-    # Tieni solo Gas e Total
-    df_pivot = df_filtered[df_filtered["Source"].isin(["Gas", "Total"])]
-    df_pivot = df_pivot.pivot(index="Country", columns="Source", values="Generation (TWh)").dropna()
-
-    countries = list(df_pivot.index)
-    best_combo = None
-    best_diff = float("inf")
-    best_share = None
-
-    for r in range(10, min(len(countries), max_countries) + 1):
-        for combo in itertools.combinations(countries, r):
-            combo_df = df_pivot.loc[list(combo)]
-            gas_sum = combo_df["Gas"].sum()
-            total_sum = combo_df["Total"].sum()
-            if total_sum == 0:
-                continue
-            share = (gas_sum / total_sum) * 100
-            diff = abs(share - target_share)
-            if diff < best_diff:
-                best_diff = diff
-                best_combo = combo
-                best_share = round(share, 2)
-    
-    return {
-        "Best Countries": best_combo,
-        "Share Found": best_share,
-        "Target Share": target_share,
-        "Difference": round(best_diff, 4)
-    }
-    
-if st.checkbox("Trova combinazione per riprodurre Europe Gas Share"):
-    target_date_str = st.text_input("Inserisci data (MM-YYYY):", value="02-2021")
-    target_share = st.number_input("Inserisci target share (%)", value=25.79)
-
-    if st.button("Calcola combinazione"):
-        result = find_best_country_combination(df_monthly, target_date_str, target_share)
-
-        if result["Best Countries"]:
-            st.success("✅ Combinazione trovata!")
-            st.markdown(f"**Share calcolata:** `{result['Share Found']}%`")
-            st.markdown(f"**Target ufficiale:** `{result['Target Share']}%`")
-            st.markdown(f"**Differenza assoluta:** `{result['Difference']}%`")
-
-            with st.expander("🔍 Paesi inclusi nella combinazione"):
-                for country in result["Best Countries"]:
-                    st.markdown(f"- {country}")
-        else:
-            st.error("❌ Nessuna combinazione trovata con i parametri attuali.")
 else:
     st.warning("Nessun dato disponibile!")
