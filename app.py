@@ -15,9 +15,9 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        f"?entity_name=Italy"
+        f"?entity_name=Europe"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
-        f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
+        f"&is_aggregate_series=true&include_all_dates_value_range=true&api_key={api_key}"
     )
     
     for attempt in range(5):
@@ -25,7 +25,13 @@ def get_data():
         if response.status_code == 200:
             data = response.json()
             if "data" in data and isinstance(data["data"], list) and len(data["data"]) > 0:
-                return pd.DataFrame(data["data"])
+                df = pd.DataFrame(data["data"])
+
+                # Se manca entity_code (come per Europe), lo forziamo
+                if df["entity_code"].isnull().all():
+                    df["entity_code"] = "Europe"
+
+                return df
             else:
                 st.warning("Dati API ricevuti ma vuoti o in formato inatteso.")
                 return pd.DataFrame()
@@ -35,6 +41,7 @@ def get_data():
             return pd.DataFrame()
     
     return pd.DataFrame()
+
 
 # --- SCARICAMENTO DATI ---
 df_raw = get_data()
