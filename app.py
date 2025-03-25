@@ -94,7 +94,12 @@ if not df_raw.empty:
     ref = ref.rename(columns={"month_year": "boy_key", "generation_twh": "boy_value"})
     df_raw = df_raw.merge(ref, on=["entity_code", "series", "boy_key"], how="left")
     df_raw["% BOY"] = ((df_raw["generation_twh"] - df_raw["boy_value"]) / df_raw["boy_value"]) * 100
+    df_raw["% BOY"] = df_raw.apply(
+    lambda row: 0.0 if row["boy_value"] == 0 else ((row["generation_twh"] - row["boy_value"]) / row["boy_value"]) * 100,
+    axis=1
+    )
     df_raw["% BOY"] = df_raw["% BOY"].round(2)
+
     df_raw.drop(columns=["boy_value", "boy_key"], inplace=True)
 
     # Ridenominazione
@@ -160,7 +165,11 @@ if not df_raw.empty:
         how="left"
     )
     df_yoy["YoY Variation (%)"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_last_year"]) / df_yoy["Generation (TWh)_last_year"]) * 100
+    df_yoy["YoY Variation (%)"] = df_yoy.apply(
+    lambda row: 0.0 if row["Generation (TWh)_last_year"] == 0 else ((row["Generation (TWh)"] - row["Generation (TWh)_last_year"]) / row["Generation (TWh)_last_year"]) * 100,
+    axis=1)
     df_yoy["YoY Variation (%)"] = df_yoy["YoY Variation (%)"].round(2)
+
     df_yoy.drop(columns=["Generation (TWh)_last_year"], inplace=True)
     df_monthly = df_yoy.copy()
 
