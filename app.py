@@ -15,11 +15,12 @@ def get_data():
     base_url = "https://api.ember-energy.org"
     query_url = (
         f"{base_url}/v1/electricity-generation/monthly"
-        f"?entity_code=ARG,ARM,AUS,AUT,AZE,BGD,BLR,BEL,BOL,BIH,BRA,BGR,CAN,CHL,CHN,COL,CRI,HRV,CYP,CZE,DNK,DOM,ECU,EGY,SLV,EST,FIN,FRA,GEO,DEU,GRC,HUN,IND,IRN,IRL,ITA,JPN,KAZ,KEN,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,MEX,MDA,MNG,MNE,MAR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRT,PRI,QAT,ROU,RUS,SRB,SGP,SVK,SVN,ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"        f"&start_date=2000-01&end_date=2025-01"
+        f"?entity_code=ARG,ARM,AUS,AUT,AZE,BGD,BLR,BEL,BOL,BIH,BRA,BGR,CAN,CHL,CHN,COL,CRI,HRV,CYP,CZE,DNK,DOM,ECU,EGY,SLV,EST,FIN,FRA,GEO,DEU,GRC,HUN,IND,IRN,IRL,ITA,JPN,KAZ,KEN,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,MEX,MDA,MNG,MNE,MAR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRT,PRI,QAT,ROU,RUS,SRB,SGP,SVK,SVN,ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"
+        f"&start_date=2000-01&end_date=2025-01"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
-    
+
     for attempt in range(5):
         response = requests.get(query_url)
         if response.status_code == 200:
@@ -33,11 +34,49 @@ def get_data():
             time.sleep(20)
         else:
             return pd.DataFrame()
-    
+
     return pd.DataFrame()
 
 # --- SCARICAMENTO DATI ---
 df_raw = get_data()
+
+# Lista ISO3 dei paesi europei presenti nei dati
+europe_iso3 = [
+    "ALB", "AUT", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", "DNK", "EST",
+    "FIN", "FRA", "DEU", "GRC", "HUN", "ISL", "IRL", "ITA", "LVA", "LTU",
+    "LUX", "MLT", "MDA", "MNE", "NLD", "MKD", "NOR", "POL", "PRT", "ROU",
+    "SRB", "SVK", "SVN", "ESP", "SWE", "CHE", "UKR", "GBR", "XKX"
+]
+
+if not df_raw.empty:
+    df_work = df_raw.copy()
+
+    # Aggregato WORLD
+    world = df_work.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    world["entity_code"] = "WORLD"
+
+    # Aggregato EUR
+    eur = df_work[df_work["entity_code"].isin(europe_iso3)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    eur["entity_code"] = "EUR"
+
+    # Unione con i dati originali
+    df_augmented = pd.concat([df_raw, world, eur], ignore_index=True)
+
+    # Calcolo quota per EUR e WORLD
+    df_augmented["date"] = pd.to_datetime(df_augmented["date"])
+    totali = df_augmented.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
+    totali = totali.rename(columns={"generation_twh": "total_twh"})
+    df_augmented = df_augmented.merge(totali, on=["entity_code", "date"], how="left")
+    df_augmented["share_of_generation_pct"] = (df_augmented["generation_twh"] / df_augmented["total_twh"]) * 100
+    df_augmented["share_of_generation_pct"] = df_augmented["share_of_generation_pct"].round(2)
+    df_augmented = df_augmented.drop(columns=["total_twh"])
+
+    df_raw = df_augmented.copy()
+
+
+# Unione con i dati originali
+df_augmented = pd.concat([df_raw, world, eur], ignore_index=True)
+
 
 if not df_raw.empty:
     # --- PREPARAZIONE DATI INIZIALI (dati mensili grezzi) ---
