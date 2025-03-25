@@ -263,7 +263,7 @@ if not df_raw.empty:
             fig.write_image(buf, format="png")
             buf.seek(0)
             st.download_button(
-                label="📸 Scarica Grafico",
+                label="Scarica Grafico",
                 data=buf,
                 file_name=f"grafico_{graph_country}.png",
                 mime="image/png"
