@@ -9,10 +9,10 @@ from io import BytesIO
 import plotly.express as px
     
     # --- CONFIGURAZIONE ---
-    st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
+st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
     
     # --- FUNZIONE: Ricava l'ultima data disponibile dai dati Ember ---
-    def get_last_available_date():
+def get_last_available_date():
         api_key = st.secrets["API_KEY"]
         url = (
             "https://api.ember-energy.org/v1/electricity-generation/monthly"
@@ -30,7 +30,7 @@ import plotly.express as px
         return today - timedelta(days=1)
     
     # --- FUNZIONE PRINCIPALE DI DOWNLOAD DATI ---
-    def get_data():
+def get_data():
         api_key = st.secrets["API_KEY"]
         end_date = get_last_available_date()
         end_str = end_date.strftime("%Y-%m")
@@ -173,7 +173,7 @@ import plotly.express as px
     df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
     df_table = df_table[df_table["Date"].str[-4:].isin(selected_years)]
     
-    def color_yoy(val):
+def color_yoy(val):
         if pd.isna(val):
             return ""
         color = "green" if val > 0 else "red" if val < 0 else "black"
@@ -245,9 +245,9 @@ import plotly.express as px
     
         st.plotly_chart(fig, use_container_width=True)
     
-        import io
+import io
         buf = io.BytesIO()
-        try:
+try:
             fig.write_image(buf, format="png")
             buf.seek(0)
             st.download_button(
