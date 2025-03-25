@@ -55,23 +55,12 @@ europe_iso3 = [
 if not df_raw.empty:
     df_raw["date"] = pd.to_datetime(df_raw["date"])
 
-    # --- EUR: solo date con tutti i paesi europei presenti ---
-    df_eu = df_raw[df_raw["entity_code"].isin(europe_iso3)].copy()
-    dates_per_country = df_eu.groupby("entity_code")["date"].apply(set)
-    dates_common_eur = set.intersection(*dates_per_country)  # Date comuni a tutti
-    
-    df_eur = df_eu[df_eu["date"].isin(dates_common_eur)]
-    df_eur = df_eur.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    df_eur = df_raw[df_raw["entity_code"].isin(europe_iso3)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
     df_eur["entity_code"] = "EUR"
-    
-    # --- WORLD: solo date con tutti i paesi presenti (opzionale) ---
-    all_countries = df_raw["entity_code"].unique().tolist()
-    df_world_input = df_raw[df_raw["entity_code"].isin(all_countries)].copy()
-    dates_per_country_world = df_world_input.groupby("entity_code")["date"].apply(set)
-    dates_common_world = set.intersection(*dates_per_country_world)  # Date comuni a tutti
-    
-    df_world = df_raw[df_raw["date"].isin(dates_common_world)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+
+    df_world = df_raw.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
     df_world["entity_code"] = "WORLD"
+
 
 
     df_raw = pd.concat([df_raw, df_eur, df_world], ignore_index=True)
