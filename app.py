@@ -66,12 +66,18 @@ if df_monthly.empty or (time.time() - start_time > 300):
 
 # --- IMPORT ANNUALI O DERIVAZIONE DA MENSILI ---
 df_annual = download_ember_data("annual")
-if df_annual.empty:
-    df_annual = (
-        df_monthly.copy()
-        .groupby(["entity_code", "entity_name", "series", df_monthly["date"].dt.year.rename("date")], as_index=False)["generation_twh"]
-        .sum()
-    )
+df_monthly["date"] = pd.to_datetime(df_monthly["date"])  # Assicurati che sia datetime
+df_monthly["year"] = df_monthly["date"].dt.year
+
+df_annual = (
+    df_monthly.copy()
+    .groupby(["entity_code", "entity_name", "series", "year"], as_index=False)["generation_twh"]
+    .sum()
+    .rename(columns={"year": "date"})
+)
+df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
+df_annual["frequency"] = "annual"
+
     df_annual["date"] = pd.to_datetime(df_annual["date"], format="%Y")
     df_annual["frequency"] = "annual"
 
