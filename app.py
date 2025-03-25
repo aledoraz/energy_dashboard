@@ -284,3 +284,52 @@ if not df_raw.empty:
     
 else:
     st.warning("Nessun dato disponibile!")
+
+import itertools
+
+def find_best_country_combination(df_monthly, month_year_str, target_share, max_countries=30):
+    # Prepara la data e filtra
+    target_date = pd.to_datetime(month_year_str, format="%m-%Y")
+    df_filtered = df_monthly[df_monthly["Date"] == month_year_str]
+    
+    # Tieni solo Gas e Total
+    df_pivot = df_filtered[df_filtered["Source"].isin(["Gas", "Total"])]
+    df_pivot = df_pivot.pivot(index="Country", columns="Source", values="Generation (TWh)").dropna()
+
+    countries = list(df_pivot.index)
+    best_combo = None
+    best_diff = float("inf")
+    best_share = None
+
+    for r in range(10, min(len(countries), max_countries) + 1):
+        for combo in itertools.combinations(countries, r):
+            combo_df = df_pivot.loc[list(combo)]
+            gas_sum = combo_df["Gas"].sum()
+            total_sum = combo_df["Total"].sum()
+            if total_sum == 0:
+                continue
+            share = (gas_sum / total_sum) * 100
+            diff = abs(share - target_share)
+            if diff < best_diff:
+                best_diff = diff
+                best_combo = combo
+                best_share = round(share, 2)
+    
+    return {
+        "Best Countries": best_combo,
+        "Share Found": best_share,
+        "Target Share": target_share,
+        "Difference": round(best_diff, 4)
+    }
+if st.checkbox("Trova combinazione per riprodurre Europe Gas Share"):
+    target_date_str = st.text_input("Inserisci data (MM-YYYY):", value="02-2021")
+    target_share = st.number_input("Inserisci target share (%)", value=25.79)
+
+    if st.button("Calcola combinazione"):
+        result = find_best_country_combination(df_monthly, target_date_str, target_share)
+        st.write("Migliore combinazione trovata:")
+        st.write(f"Share calcolata: {result['Share Found']}%")
+        st.write(f"Differenza dal target: {result['Difference']}%")
+        st.write("Paesi inclusi:")
+        st.write(result["Best Countries"])
+
