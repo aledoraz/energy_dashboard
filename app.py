@@ -1,7 +1,7 @@
+
 import streamlit as st
 import pandas as pd
 import requests
-import matplotlib.pyplot as plt
 import time
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -62,111 +62,122 @@ def get_data():
 # --- SCARICAMENTO DATI ---
 df_raw = get_data()
 
-# Lista ISO3 dei paesi europei presenti nei dati
+# Lista ISO3 dei paesi europei
 europe_iso3 = [
     "ALB", "AUT", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC", "HUN", "ISL", "IRL",
     "ITA", "LVA", "LTU", "LUX", "MLT", "MDA", "MNE", "NLD", "MKD", "NOR", "POL", "PRT", "ROU", "SRB", "SVK", "SVN", "ESP",
     "SWE", "CHE", "UKR", "GBR", "XKX"
 ]
 
-# --- PREPARAZIONE DATI ---
-df = df_raw[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct", "% BOY"]].copy()
-df["date"] = pd.to_datetime(df["date"])
-df = df[df["date"] >= pd.to_datetime("2014-01")]
-df["generation_twh"] = df["generation_twh"].round(2)
+# Aggregazioni EUR e WORLD
+if not df_raw.empty:
+    df_raw["date"] = pd.to_datetime(df_raw["date"])
+    df_eur = df_raw[df_raw["entity_code"].isin(europe_iso3)].groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    df_eur["entity_code"] = "EUR"
 
-# Definizione fonti green/brown
-green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
-brown_sources = ["Coal", "Gas", "Other fossil"]
+    df_world = df_raw.groupby(["date", "series"], as_index=False)["generation_twh"].sum()
+    df_world["entity_code"] = "WORLD"
 
-# Aggregati Total, Green, Brown
-df_total = df.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
-df_total["series"] = "Total"
-df_total["share_of_generation_pct"] = 100.0
+    df_raw = pd.concat([df_raw, df_eur, df_world], ignore_index=True)
 
-df_green = df[df["series"].isin(green_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
-df_green["series"] = "Green"
+    # Ricalcolo quota
+    total_gen = df_raw.groupby(["entity_code", "date"])["generation_twh"].sum().reset_index().rename(
+        columns={"generation_twh": "total"})
+    df_raw = df_raw.merge(total_gen, on=["entity_code", "date"], how="left")
+    df_raw["share_of_generation_pct"] = (df_raw["generation_twh"] / df_raw["total"]) * 100
+    df_raw["share_of_generation_pct"] = df_raw["share_of_generation_pct"].round(2)
+    df_raw.drop(columns="total", inplace=True)
 
-df_brown = df[df["series"].isin(brown_sources)].groupby(["entity_code", "date"])["generation_twh"].sum().reset_index()
-df_brown["series"] = "Brown"
+    # Aggiunta colonna BOY = valore di gennaio per ogni anno
+    df_raw["month_year"] = df_raw["date"].dt.strftime("%m-%Y")
+    df_raw["boy_key"] = "01-" + df_raw["date"].dt.year.astype(str)
+    ref = df_raw[["entity_code", "series", "month_year", "generation_twh"]].copy()
+    ref = ref.rename(columns={"month_year": "boy_key", "generation_twh": "boy_value"})
+    df_raw = df_raw.merge(ref, on=["entity_code", "series", "boy_key"], how="left")
+    df_raw["% BOY"] = ((df_raw["generation_twh"] - df_raw["boy_value"]) / df_raw["boy_value"]) * 100
+    df_raw["% BOY"] = df_raw["% BOY"].round(2)
+    df_raw.drop(columns=["boy_value", "boy_key"], inplace=True)
 
-for agg_df in [df_green, df_brown]:
-    agg_df["share_of_generation_pct"] = None  # placeholder, sarà calcolata dopo
+    # Ridenominazione
+    df = df_raw.rename(columns={
+        "entity_code": "Country",
+        "date": "Date",
+        "series": "Source",
+        "generation_twh": "Generation (TWh)",
+        "share_of_generation_pct": "Share (%)"
+    })
 
-# Calcolo quota per Green e Brown
-df_total_rename = df_total[["entity_code", "date", "generation_twh"]].rename(columns={"generation_twh": "total"})
-for agg_df in [df_green, df_brown]:
-    agg_df.merge(df_total_rename, on=["entity_code", "date"], how="left")
-    agg_df["share_of_generation_pct"] = (agg_df["generation_twh"] / df_total_rename["total"]) * 100
-    agg_df["share_of_generation_pct"] = agg_df["share_of_generation_pct"].round(2)
+    # Aggiunta Green, Brown, Total
+    green_sources = ["Bioenergy", "Hydro", "Solar", "Wind", "Other renewables", "Nuclear"]
+    brown_sources = ["Coal", "Gas", "Other fossil"]
 
-# Unione di tutte le fonti
-df = pd.concat([df, df_total, df_green, df_brown], ignore_index=True)
-df["share_of_generation_pct"] = df["share_of_generation_pct"].round(2)
+    def aggregate_and_append(label, source_list):
+        agg = df[df["Source"].isin(source_list)].groupby(["Country", "Date"], as_index=False)[
+            ["Generation (TWh)"]].sum()
+        agg["Source"] = label
+        total = df[df["Source"] == "Total"][["Country", "Date", "Generation (TWh)"]].rename(columns={"Generation (TWh)": "total"})
+        agg = agg.merge(total, on=["Country", "Date"], how="left")
+        agg["Share (%)"] = (agg["Generation (TWh)"] / agg["total"] * 100).round(2)
+        agg.drop(columns="total", inplace=True)
 
-# Rinomina
-df = df.rename(columns={
-    "entity_code": "Country",
-    "date": "Date",
-    "series": "Source",
-    "generation_twh": "Generation (TWh)",
-    "share_of_generation_pct": "Share (%)"
-})
+        # Colonna % BOY anche per aggregati
+        agg["month_year"] = agg["Date"].dt.strftime("%m-%Y")
+        agg["boy_key"] = "01-" + agg["Date"].dt.year.astype(str)
+        ref = agg[["Country", "Source", "month_year", "Generation (TWh)"]].rename(columns={
+            "month_year": "boy_key", "Generation (TWh)": "boy_value"})
+        agg = agg.merge(ref, on=["Country", "Source", "boy_key"], how="left")
+        agg["% BOY"] = ((agg["Generation (TWh)"] - agg["boy_value"]) / agg["boy_value"]).round(2) * 100
+        agg.drop(columns=["boy_value", "boy_key"], inplace=True)
+        return agg
 
-# Ordinamento
-df = df.sort_values(by=["Country", "Source", "Date"])
-df_original = df.copy()
+    df_total = df.groupby(["Country", "Date"], as_index=False)[["Generation (TWh)"]].sum()
+    df_total["Source"] = "Total"
+    df_total["Share (%)"] = 100.0
 
-# --- CALCOLO YOY ---
-df_month = df.copy()
-df_last_year = df_month.copy()
-df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
-df_month = df_month.merge(
-    df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
-    on=["Country", "Source", "Date"],
-    suffixes=("", "_last_year"),
-    how="left"
-)
-df_month["YoY Variation (%)"] = ((df_month["Generation (TWh)"] - df_month["Generation (TWh)_last_year"]) / df_month["Generation (TWh)_last_year"]) * 100
-df_month["YoY Variation (%)"] = df_month["YoY Variation (%)"].round(2)
-df_month.drop(columns=["Generation (TWh)_last_year"], inplace=True)
-df_monthly = df_month.copy()
-df_monthly["Date"] = df_monthly["Date"].dt.strftime('%m-%Y')
+    # Colonna % BOY per Total
+    df_total["month_year"] = df_total["Date"].dt.strftime("%m-%Y")
+    df_total["boy_key"] = "01-" + df_total["Date"].dt.year.astype(str)
+    ref_total = df_total[["Country", "month_year", "Generation (TWh)"]].rename(columns={"month_year": "boy_key", "Generation (TWh)": "boy_value"})
+    df_total = df_total.merge(ref_total, on=["Country", "boy_key"], how="left")
+    df_total["% BOY"] = ((df_total["Generation (TWh)"] - df_total["boy_value"]) / df_total["boy_value"] * 100).round(2)
+    df_total.drop(columns=["boy_value", "boy_key"], inplace=True)
 
-# --- AGGREGAZIONE ANNUALE ---
-df_annual = df_original.copy()
-df_annual['Year'] = df_annual["Date"].dt.year
-annual = df_annual.groupby(['Country', 'Source', 'Year'])['Generation (TWh)'].sum().reset_index()
-annual_total = annual[annual['Source'] == 'Total'][['Country', 'Year', 'Generation (TWh)']].rename(
-    columns={'Generation (TWh)': 'Annual Total'})
-annual = annual.merge(annual_total, on=['Country', 'Year'], how='left')
-annual['Share (%)'] = annual.apply(
-    lambda row: 100 if row['Source'] == 'Total' else round((row['Generation (TWh)'] / row['Annual Total']) * 100, 2),
-    axis=1
-)
-annual = annual.sort_values(['Country', 'Source', 'Year'])
-annual['YoY Variation (%)'] = annual.groupby(['Country', 'Source'])['Generation (TWh)'].pct_change() * 100
-annual['YoY Variation (%)'] = annual['YoY Variation (%)'].round(2)
-annual['Date'] = annual['Year'].astype(str)
-df_annual_final = annual[['Country', 'Date', 'Source', 'Generation (TWh)', 'Share (%)', 'YoY Variation (%)']]
+    df_green = aggregate_and_append("Green", green_sources)
+    df_brown = aggregate_and_append("Brown", brown_sources)
 
-# --- TABELLA ---
-st.subheader("Tabella Produzione Elettrica")
-table_view = st.radio("Visualizzazione dati:", ("Mensile", "Annuale"))
-table_country = st.selectbox("Seleziona un paese per la tabella:", sorted(df["Country"].unique()))
-available_sources = sorted(df["Source"].unique())
-table_source = st.multiselect("Seleziona una fonte:", available_sources, default=available_sources)
+    df_all = pd.concat([df, df_total, df_green, df_brown], ignore_index=True)
+    df_all = df_all[df_all["Date"] >= pd.to_datetime("2014-01")]
+    df_all = df_all.sort_values(["Country", "Source", "Date"])
+    df_all["Date_str"] = df_all["Date"].dt.strftime("%m-%Y")
 
-if table_view == "Mensile":
-    available_years = sorted(df_monthly["Date"].str[-4:].unique())
-else:
-    available_years = sorted(df_annual_final["Date"].unique())
+    # --- VARIAZIONE YOY ---
+    df_yoy = df_all.copy()
+    df_last_year = df_yoy.copy()
+    df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
+    df_yoy = df_yoy.merge(
+        df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
+        on=["Country", "Source", "Date"],
+        suffixes=("", "_last_year"),
+        how="left"
+    )
+    df_yoy["YoY Variation (%)"] = ((df_yoy["Generation (TWh)"] - df_yoy["Generation (TWh)_last_year"]) / df_yoy["Generation (TWh)_last_year"]) * 100
+    df_yoy["YoY Variation (%)"] = df_yoy["YoY Variation (%)"].round(2)
+    df_yoy.drop(columns=["Generation (TWh)_last_year"], inplace=True)
+    df_monthly = df_yoy.copy()
 
-selected_years = st.multiselect("Seleziona uno o più anni:", available_years, default=available_years)
+    # --- TABELLA ---
+    st.subheader("Tabella Produzione Elettrica")
+    view = st.radio("Visualizzazione dati:", ("Mensile",), index=0)
+    country = st.selectbox("Seleziona un paese:", sorted(df_monthly["Country"].unique()))
+    sources = st.multiselect("Seleziona una fonte:", sorted(df_monthly["Source"].unique()), default=sorted(df_monthly["Source"].unique()))
+    years = st.multiselect("Anni:", sorted(df_monthly["Date"].dt.year.unique().astype(str)), default=sorted(df_monthly["Date"].dt.year.unique().astype(str)))
 
-df_table = df_monthly.copy() if table_view == "Mensile" else df_annual_final.copy()
-df_table = df_table[(df_table["Country"] == table_country) & (df_table["Source"].isin(table_source))]
-df_table = df_table[df_table["Date"].str[-4:].isin(selected_years)]
+    df_show = df_monthly[
+        (df_monthly["Country"] == country) &
+        (df_monthly["Source"].isin(sources)) &
+        (df_monthly["Date"].dt.year.astype(str).isin(years))
+    ].copy()
+    df_show["Date"] = df_show["Date"].dt.strftime("%m-%Y")
 
 def color_yoy(val):
     if pd.isna(val):
