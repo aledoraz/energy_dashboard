@@ -177,7 +177,7 @@ if not df_raw.empty:
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
     df_month = df_month.merge(
         df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
-        on=["Country", "Source", "Date"],
+        on=["Country", "Source", "Date","% Last GC", "% BOY"],
         suffixes=("", "_last_year"),
         how="left"
     )
