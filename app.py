@@ -130,7 +130,7 @@ if not df_raw.empty:
 
 if not df_raw.empty:
     # --- PREPARAZIONE DATI INIZIALI (dati mensili grezzi) ---
-    df = df_raw[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct"]].copy()
+    df = df_raw[["entity_code", "date", "series", "generation_twh", "share_of_generation_pct","Last GC","BOY"]].copy()
     df['date'] = pd.to_datetime(df['date'])
     df = df[df['date'] >= pd.to_datetime("2014-01")]
     df["generation_twh"] = df["generation_twh"].round(2)
@@ -177,7 +177,7 @@ if not df_raw.empty:
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
     df_month = df_month.merge(
         df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
-        on=["Country", "Source", "Date","Last GC", "BOY"],
+        on=["Country", "Source", "Date"],
         suffixes=("", "_last_year"),
         how="left"
     )
