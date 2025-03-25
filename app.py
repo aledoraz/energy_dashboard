@@ -45,8 +45,7 @@ df_raw = get_data()
 europe_iso3 = [
     "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU", "GRC",
     "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT", "ROU", "SVK",
-    "SVN", "ESP", "SWE", "ISL", "NOR", "CHE",
-    "GBR", "SRB", "MNE", "ALB", "BIH", "XKX", "UKR", "MDA"
+    "SVN", "ESP", "SWE"
 ]
 
 # Aggregazioni EUR e WORLD
