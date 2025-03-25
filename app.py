@@ -17,7 +17,7 @@ def get_data():
         f"{base_url}/v1/electricity-generation/monthly"
         f"?entity=Europe,World"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
-        f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
+        f"&is_aggregate_series=true&include_all_dates_value_range=true&api_key={api_key}"
     )
     
     for attempt in range(5):
