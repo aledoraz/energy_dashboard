@@ -114,8 +114,8 @@ if not df_raw.empty:
         columns={"month_year": "Last GC", "generation_twh": "GC Value"})
 
     df_raw = df_raw.merge(gc_ref, on=["entity_code", "series", "Last GC"], how="left")
-    df_raw["% Last GC"] = ((df_raw["generation_twh"] - df_raw["GC Value"]) / df_raw["GC Value"]) * 100
-    df_raw["% Last GC"] = df_raw["% Last GC"].round(2)
+    df_raw["Last GC"] = ((df_raw["generation_twh"] - df_raw["GC Value"]) / df_raw["GC Value"]) * 100
+    df_raw["Last GC"] = df_raw["Last GC"].round(2)
     df_raw = df_raw.drop(columns=["GC Value"])
 
     # Calcolo variazione vs inizio anno (01-YYYY)
@@ -124,8 +124,8 @@ if not df_raw.empty:
     boy_ref = df_raw[["entity_code", "series", "month_year", "generation_twh"]].rename(
         columns={"month_year": "BOY", "generation_twh": "BOY Value"})
     df_raw = df_raw.merge(boy_ref, on=["entity_code", "series", "BOY"], how="left")
-    df_raw["% BOY"] = ((df_raw["generation_twh"] - df_raw["BOY Value"]) / df_raw["BOY Value"]) * 100
-    df_raw["% BOY"] = df_raw["% BOY"].round(2)
+    df_raw["BOY"] = ((df_raw["generation_twh"] - df_raw["BOY Value"]) / df_raw["BOY Value"]) * 100
+    df_raw["BOY"] = df_raw["BOY"].round(2)
     df_raw = df_raw.drop(columns=["BOY Value"])
 
 if not df_raw.empty:
@@ -177,7 +177,7 @@ if not df_raw.empty:
     df_last_year["Date"] = df_last_year["Date"] + pd.DateOffset(years=1)
     df_month = df_month.merge(
         df_last_year[["Country", "Source", "Date", "Generation (TWh)"]],
-        on=["Country", "Source", "Date","% Last GC", "% BOY"],
+        on=["Country", "Source", "Date","Last GC", "BOY"],
         suffixes=("", "_last_year"),
         how="left"
     )
@@ -185,7 +185,7 @@ if not df_raw.empty:
     df_month["YoY Variation (%)"] = df_month["YoY Variation (%)"].round(2)
     df_month.drop(columns=["Generation (TWh)_last_year"], inplace=True)
     # Selezioniamo le colonne utili e formattiamo la data in "MM-YYYY"
-    df_monthly = df_month[["Country", "Date", "Source","Generation (TWh)", "Share (%)", "YoY Variation (%)","% Last GC", "% BOY"]].copy()
+    df_monthly = df_month[["Country", "Date", "Source","Generation (TWh)", "Share (%)", "YoY Variation (%)","Last GC", "BOY"]].copy()
     df_monthly["Date"] = df_monthly["Date"].dt.strftime('%m-%Y')
     
     # --- AGGREGAZIONE DEI DATI A LIVELLO ANNUALE ---
@@ -249,12 +249,12 @@ if not df_raw.empty:
         color = "green" if val > 0 else "red" if val < 0 else "black"
         return f"color: {color}"
     
-    styled_table = df_table.style.applymap(color_yoy, subset=["YoY Variation (%)", "% Last GC", "% BOY"]).format({
+    styled_table = df_table.style.applymap(color_yoy, subset=["YoY Variation (%)", "Last GC", "BOY"]).format({
     "Generation (TWh)": "{:.2f}",
     "Share (%)": "{:.2f}",
     "YoY Variation (%)": "{:.2f}",
-    "% Last GC": "{:.2f}",
-    "% BOY": "{:.2f}"
+    "Last GC": "{:.2f}",
+    "BOY": "{:.2f}"
     })
 
     
