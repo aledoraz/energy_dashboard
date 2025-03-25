@@ -321,15 +321,22 @@ def find_best_country_combination(df_monthly, month_year_str, target_share, max_
         "Target Share": target_share,
         "Difference": round(best_diff, 4)
     }
+    
 if st.checkbox("Trova combinazione per riprodurre Europe Gas Share"):
     target_date_str = st.text_input("Inserisci data (MM-YYYY):", value="02-2021")
     target_share = st.number_input("Inserisci target share (%)", value=25.79)
 
     if st.button("Calcola combinazione"):
         result = find_best_country_combination(df_monthly, target_date_str, target_share)
-        st.write("Migliore combinazione trovata:")
-        st.write(f"Share calcolata: {result['Share Found']}%")
-        st.write(f"Differenza dal target: {result['Difference']}%")
-        st.write("Paesi inclusi:")
-        st.write(result["Best Countries"])
 
+        if result["Best Countries"]:
+            st.success("✅ Combinazione trovata!")
+            st.markdown(f"**Share calcolata:** `{result['Share Found']}%`")
+            st.markdown(f"**Target ufficiale:** `{result['Target Share']}%`")
+            st.markdown(f"**Differenza assoluta:** `{result['Difference']}%`")
+
+            with st.expander("🔍 Paesi inclusi nella combinazione"):
+                for country in result["Best Countries"]:
+                    st.markdown(f"- {country}")
+        else:
+            st.error("❌ Nessuna combinazione trovata con i parametri attuali.")
