@@ -274,7 +274,7 @@ if not df_graph.empty:
 st.plotly_chart(fig, use_container_width=True)
     
         # Download PNG (solo se Kaleido è installato)
-    import io
+import io
             buf = io.BytesIO()
     try:
             fig.write_image(buf, format="png")
