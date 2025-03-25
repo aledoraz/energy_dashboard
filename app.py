@@ -274,9 +274,9 @@ if not df_graph.empty:
 st.plotly_chart(fig, use_container_width=True)
     
         # Download PNG (solo se Kaleido è installato)
-import io
-        buf = io.BytesIO()
-try:
+    import io
+            buf = io.BytesIO()
+    try:
             fig.write_image(buf, format="png")
             buf.seek(0)
             st.download_button(
@@ -285,7 +285,7 @@ try:
                 file_name=f"grafico_{graph_country}.png",
                 mime="image/png"
         )
-except Exception as e:
+    except Exception as e:
             st.warning("⚠️ Kaleido non installato, impossibile scaricare il grafico come PNG.")
 else:
         st.warning("Nessun dato disponibile per il grafico!")
