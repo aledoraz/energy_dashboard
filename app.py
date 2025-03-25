@@ -9,29 +9,12 @@ import plotly.express as px
 # --- CONFIGURAZIONE ---
 st.set_page_config(page_title="Dashboard Generazione Elettrica", layout="wide")
 
-# --- FUNZIONE: Ricava l'ultima data disponibile dai dati Ember ---
-def get_last_available_date():
-    api_key = st.secrets["API_KEY"]
-    url = (
-        "https://api.ember-energy.org/v1/electricity-generation/monthly"
-        "?entity_code=ITA&series=Coal"
-        "&is_aggregate_series=false&include_all_dates_value_range=true"
-        f"&api_key={api_key}"
-    )
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        if "data" in data and data["data"]:
-            dates = [entry["date"] for entry in data["data"]]
-            return max(pd.to_datetime(dates))
-    today = datetime.today().replace(day=1)
-    return today - timedelta(days=1)
+
 
 # --- FUNZIONE PRINCIPALE DI DOWNLOAD DATI ---
 def get_data():
     api_key = st.secrets["API_KEY"]
-    end_date = get_last_available_date()
-    end_str = end_date.strftime("%Y-%m")
+    
 
     base_url = "https://api.ember-energy.org"
     query_url = (
@@ -40,7 +23,7 @@ def get_data():
         f"ECU,EGY,SLV,EST,FIN,FRA,GEO,DEU,GRC,HUN,IND,IRN,IRL,ITA,JPN,KAZ,KEN,KWT,KGZ,LVA,LTU,LUX,MYS,MLT,"
         f"MEX,MDA,MNG,MNE,MAR,NLD,NZL,NGA,MKD,NOR,OMN,PAK,PER,PHL,POL,PRT,PRI,QAT,ROU,RUS,SRB,SGP,SVK,SVN,"
         f"ZAF,KOR,ESP,LKA,SWE,CHE,TWN,TJK,THA,TUN,TUR,UKR,GBR,USA,URY,VNM"
-        f"&start_date=2000-01&end_date={end_str}"
+        f"&start_date=2000-01&end_date=2025-12"
         f"&series=Bioenergy,Coal,Gas,Hydro,Nuclear,Other fossil,Other renewables,Solar,Wind"
         f"&is_aggregate_series=false&include_all_dates_value_range=true&api_key={api_key}"
     )
